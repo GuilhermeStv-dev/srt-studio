@@ -17,6 +17,13 @@ type CaptionPreview = {
   end: number
 }
 
+type SegmentationSettings = {
+  target_words: number
+  ignore_prepositions: boolean
+  preserve_punctuation: boolean
+  monetary_thousands: boolean
+}
+
 type TranscriptionResult = {
   ok: true
   language: string
@@ -28,6 +35,7 @@ type TranscriptionResult = {
   runtime_warning?: string | null
   words: TranscriptionWord[]
   captions: CaptionPreview[]
+  segmentation: SegmentationSettings
 }
 
 declare global {
@@ -40,7 +48,10 @@ declare global {
         filePath: string
         model: string
         language: string | null
-        targetChars: number
+        targetWords: number
+        ignorePrepositions: boolean
+        preservePunctuation: boolean
+        formatMonetaryThousands: boolean
       }): Promise<TranscriptionResult>
     }
   }
