@@ -1,20 +1,29 @@
 {
   "name": "@srt-studio/desktop",
-  "version": "0.1.0-dev.0",
+  "productName": "SRT Studio",
+  "version": "0.1.0",
   "private": true,
+  "author": "Guilherme Estevão",
+  "description": "Desktop local para transcrição e geração de SRT Premiere-safe.",
   "main": "./out/main/index.js",
   "scripts": {
     "electron:install": "install-electron --no",
     "predev": "npm run electron:install",
     "dev": "electron-vite dev",
     "build": "electron-vite build",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "package": "electron-forge package",
+    "make": "electron-forge make",
+    "make:win": "electron-forge make --platform=win32 --arch=x64"
   },
   "dependencies": {
+    "electron-squirrel-startup": "^1.0.1",
     "react": "19.2.0",
     "react-dom": "19.2.0"
   },
   "devDependencies": {
+    "@electron-forge/cli": "7.11.2",
+    "@electron-forge/maker-squirrel": "7.11.2",
     "@types/node": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
