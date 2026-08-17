@@ -15,7 +15,7 @@ Esta base já contém:
 - geração e validação estrutural de SRT;
 - health-check do engine via CLI;
 - ponte IPC Electron → Python para verificar o engine;
-- 23 testes unitários do engine;
+- 24 testes unitários do engine;
 - CI inicial para engine Python e typecheck/build do desktop.
 
 ## Objetivo do MVP
