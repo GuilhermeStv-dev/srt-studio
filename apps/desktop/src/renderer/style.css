@@ -42,6 +42,7 @@ h1 { margin: 12px 0 10px; font-size: clamp(50px, 7vw, 82px); line-height: .95; l
 
 .controls { display: grid; gap: 18px; }
 .field-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.field-row.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 label { display: grid; gap: 8px; color: #c8cad0; font-size: 13px; }
 select {
   width: 100%;
@@ -69,12 +70,21 @@ button.ghost { padding: 8px 11px; border: 1px solid #30323c; color: #b9bbc3; bac
 button:disabled { opacity: .45; cursor: not-allowed; }
 
 .result { min-height: 190px; }
-.word-preview { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; padding-top: 20px; border-top: 1px solid #292b34; }
+.caption-preview { display: grid; gap: 7px; margin-top: 22px; padding-top: 18px; border-top: 1px solid #292b34; }
+.caption-row { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid #292b34; border-radius: 10px; background: #15161a; }
+.caption-row strong { font-size: 14px; font-weight: 700; }
+.caption-row small, .caption-number { color: #777b86; font-size: 10px; font-variant-numeric: tabular-nums; }
+.caption-number { color: #8f88ff; font-weight: 800; }
+.raw-words { margin-top: 16px; color: #8f929b; font-size: 12px; }
+.raw-words summary { cursor: pointer; user-select: none; }
+.word-preview { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; padding-top: 14px; border-top: 1px solid #292b34; }
 .word-chip { display: grid; gap: 2px; padding: 8px 10px; border: 1px solid #30323c; border-radius: 10px; background: #15161a; }
 .word-chip strong { font-size: 13px; font-weight: 700; }
 .word-chip small { color: #777b86; font-size: 10px; font-variant-numeric: tabular-nums; }
 
 @media (max-width: 720px) {
   .hero-topline, .card.primary, .result-header, .engine-line { align-items: flex-start; flex-direction: column; }
-  .field-row { grid-template-columns: 1fr; }
+  .field-row, .field-row.three { grid-template-columns: 1fr; }
+  .caption-row { grid-template-columns: 28px minmax(0, 1fr); }
+  .caption-row small { grid-column: 2; }
 }
