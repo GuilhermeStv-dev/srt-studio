@@ -10,7 +10,11 @@ contextBridge.exposeInMainWorld('srtStudio', {
     language: string | null
     targetWords: number
     ignorePrepositions: boolean
-    preservePunctuation: boolean
+    preserveCommasPeriods: boolean
     formatMonetaryThousands: boolean
-  }) => ipcRenderer.invoke('engine:transcribe', input)
+  }) => ipcRenderer.invoke('engine:transcribe', input),
+  exportSrt: (input: {
+    sourceFilePath: string
+    captions: Array<{ text: string; start: number; end: number }>
+  }) => ipcRenderer.invoke('srt:export', input)
 })

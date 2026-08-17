@@ -86,11 +86,27 @@ button.ghost { padding: 8px 11px; border: 1px solid #30323c; color: #b9bbc3; bac
 button:disabled { opacity: .45; cursor: not-allowed; }
 
 .result { min-height: 190px; }
+.result-actions { display: flex; gap: 10px; align-items: center; }
+.export-status {
+  display: grid;
+  gap: 4px;
+  margin-top: 20px;
+  padding: 12px 14px;
+  border: 1px solid #30323c;
+  border-radius: 11px;
+  background: #15161a;
+  color: #9da0aa;
+}
+.export-status strong { font-size: 12px; font-weight: 700; }
+.export-status small { color: #777b86; font-size: 10px; overflow-wrap: anywhere; }
+.export-status.success { border-color: rgba(120, 231, 189, .35); color: #78e7bd; }
+.export-status.error { border-color: rgba(255, 157, 157, .35); color: #ff9d9d; }
 .caption-preview { display: grid; gap: 7px; margin-top: 22px; padding-top: 18px; border-top: 1px solid #292b34; }
 .caption-row { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid #292b34; border-radius: 10px; background: #15161a; }
 .caption-row strong { font-size: 14px; font-weight: 700; }
 .caption-row small, .caption-number { color: #777b86; font-size: 10px; font-variant-numeric: tabular-nums; }
 .caption-number { color: #8f88ff; font-weight: 800; }
+.preview-note { margin-top: 10px !important; color: #777b86 !important; font-size: 11px; }
 .raw-words { margin-top: 16px; color: #8f929b; font-size: 12px; }
 .raw-words summary { cursor: pointer; user-select: none; }
 .word-preview { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; padding-top: 14px; border-top: 1px solid #292b34; }
@@ -104,6 +120,7 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 
 @media (max-width: 720px) {
   .hero-topline, .card.primary, .result-header, .engine-line { align-items: flex-start; flex-direction: column; }
+  .result-actions { width: 100%; flex-wrap: wrap; }
   .field-row, .field-row.three { grid-template-columns: 1fr; }
   .caption-row { grid-template-columns: 28px minmax(0, 1fr); }
   .caption-row small { grid-column: 2; }

@@ -20,7 +20,7 @@ type CaptionPreview = {
 type SegmentationSettings = {
   target_words: number
   ignore_prepositions: boolean
-  preserve_punctuation: boolean
+  preserve_commas_periods: boolean
   monetary_thousands: boolean
 }
 
@@ -38,6 +38,16 @@ type TranscriptionResult = {
   segmentation: SegmentationSettings
 }
 
+type SrtExportResult =
+  | { canceled: true }
+  | {
+      canceled: false
+      ok: true
+      path: string
+      cue_count: number
+      byte_count: number
+    }
+
 declare global {
   interface Window {
     srtStudio: {
@@ -50,9 +60,13 @@ declare global {
         language: string | null
         targetWords: number
         ignorePrepositions: boolean
-        preservePunctuation: boolean
+        preserveCommasPeriods: boolean
         formatMonetaryThousands: boolean
       }): Promise<TranscriptionResult>
+      exportSrt(input: {
+        sourceFilePath: string
+        captions: CaptionPreview[]
+      }): Promise<SrtExportResult>
     }
   }
 }

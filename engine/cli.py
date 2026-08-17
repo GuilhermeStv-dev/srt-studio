@@ -5,8 +5,11 @@ import json
 import sys
 
 from engine import __version__
+from engine.models import CaptionCue
 from engine.normalization import normalize_monetary_tokens
 from engine.segmentation import SegmentationConfig, segment_words
+from engine.srt import export_srt
+from engine.srt.validate import InvalidCueError
 from engine.transcription import (
     TranscriptionError,
     TranscriptionUnavailableError,
@@ -65,7 +68,7 @@ def transcribe(args: argparse.Namespace) -> int:
         SegmentationConfig(
             target_words=args.target_words,
             ignore_prepositions=not args.count_prepositions,
-            preserve_punctuation=not args.no_punctuation,
+            preserve_commas_periods=not args.remove_commas_periods,
         ),
     )
     emit(
@@ -76,11 +79,52 @@ def transcribe(args: argparse.Namespace) -> int:
             "segmentation": {
                 "target_words": args.target_words,
                 "ignore_prepositions": not args.count_prepositions,
-                "preserve_punctuation": not args.no_punctuation,
+                "preserve_commas_periods": not args.remove_commas_periods,
                 "monetary_thousands": args.monetary_thousands,
             },
         }
     )
+    return 0
+
+
+def _read_captions_from_stdin() -> tuple[CaptionCue, ...]:
+    raw = sys.stdin.read()
+    if not raw.strip():
+        raise ValueError("Nenhuma caption foi enviada para exportação")
+
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise ValueError("Payload de captions não é JSON válido") from exc
+
+    items = payload.get("captions") if isinstance(payload, dict) else payload
+    if not isinstance(items, list) or not items:
+        raise ValueError("Payload precisa conter uma lista não vazia de captions")
+
+    cues: list[CaptionCue] = []
+    for index, item in enumerate(items, start=1):
+        if not isinstance(item, dict):
+            raise ValueError(f"Caption {index} tem formato inválido")
+        try:
+            text = str(item["text"])
+            start = float(item["start"])
+            end = float(item["end"])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError(f"Caption {index} não possui text/start/end válidos") from exc
+        cues.append(CaptionCue(text=text, start=start, end=end))
+
+    return tuple(cues)
+
+
+def export_srt_command(args: argparse.Namespace) -> int:
+    try:
+        cues = _read_captions_from_stdin()
+        result = export_srt(cues, args.output, overwrite=args.overwrite)
+    except (ValueError, InvalidCueError, FileNotFoundError, FileExistsError, OSError) as exc:
+        print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False), file=sys.stderr)
+        return 5
+
+    emit({"ok": True, **result.to_dict()})
     return 0
 
 
@@ -116,14 +160,24 @@ def build_parser() -> argparse.ArgumentParser:
         help="Faz preposições consumirem vaga na contagem de palavras",
     )
     transcribe_parser.add_argument(
-        "--no-punctuation",
+        "--remove-commas-periods",
         action="store_true",
-        help="Remove pontuação nas bordas das palavras das captions",
+        help="Remove somente vírgulas e pontos nas bordas; ¿ ? ¡ ! são sempre preservados",
     )
     transcribe_parser.add_argument(
         "--monetary-thousands",
         action="store_true",
         help="Exibe valores monetários redondos no formato N mil",
+    )
+
+    export_parser = sub.add_parser(
+        "export-srt", help="Valida captions recebidas via stdin e grava um arquivo SRT UTF-8"
+    )
+    export_parser.add_argument("--output", required=True)
+    export_parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Permite sobrescrever um arquivo existente após confirmação externa explícita",
     )
 
     return parser
@@ -137,6 +191,8 @@ def main() -> int:
         return runtime(args.device)
     if args.command == "transcribe":
         return transcribe(args)
+    if args.command == "export-srt":
+        return export_srt_command(args)
     return 2
 
 

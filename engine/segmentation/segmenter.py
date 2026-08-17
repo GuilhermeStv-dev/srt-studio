@@ -34,33 +34,46 @@ _PREPOSITIONS = {
     "tras",
 }
 
-# Remove somente pontuação nas bordas. Pontuação interna fica intacta para não
-# alterar números como 50.000, 1,5 ou outros tokens válidos.
-_EDGE_PUNCTUATION = re.compile(r"^[¿¡\"'“”‘’([{]+|[?!,.;:…\"'“”‘’)\]}]+$")
+# Limpeza ampla usada APENAS para comparação lexical interna, por exemplo para
+# reconhecer "para," como preposição. Não define o texto final da caption.
+_LEXICAL_EDGE_PUNCTUATION = re.compile(r"^[¿¡\"'“”‘’([{]+|[?!,.;:…\"'“”‘’)\]}]+$")
+
+# A opção exposta ao usuário controla somente vírgulas e pontos nas bordas.
+# ¿ ? ¡ ! (e demais sinais) são sempre preservados no texto final.
+_OPTIONAL_EDGE_PUNCTUATION = re.compile(r"^[,.]+|[,.]+$")
 
 
 @dataclass(frozen=True, slots=True)
 class SegmentationConfig:
     target_words: int = 2
     ignore_prepositions: bool = True
-    preserve_punctuation: bool = True
+    preserve_commas_periods: bool = True
 
     def validate(self) -> None:
         if self.target_words not in {1, 2, 3, 4}:
             raise ValueError("target_words deve ser 1, 2, 3 ou 4")
 
 
-def _strip_edge_punctuation(text: str) -> str:
+def _strip_lexical_edge_punctuation(text: str) -> str:
     value = text.strip()
     previous = None
     while value != previous:
         previous = value
-        value = _EDGE_PUNCTUATION.sub("", value).strip()
+        value = _LEXICAL_EDGE_PUNCTUATION.sub("", value).strip()
+    return value
+
+
+def _strip_optional_commas_periods(text: str) -> str:
+    value = text.strip()
+    previous = None
+    while value != previous:
+        previous = value
+        value = _OPTIONAL_EDGE_PUNCTUATION.sub("", value).strip()
     return value
 
 
 def _lexical(text: str) -> str:
-    return _strip_edge_punctuation(text).lower()
+    return _strip_lexical_edge_punctuation(text).lower()
 
 
 def _counts_toward_target(text: str, config: SegmentationConfig) -> bool:
@@ -70,16 +83,16 @@ def _counts_toward_target(text: str, config: SegmentationConfig) -> bool:
     return not (config.ignore_prepositions and lexical in _PREPOSITIONS)
 
 
-def _render_token(text: str, preserve_punctuation: bool) -> str:
+def _render_token(text: str, preserve_commas_periods: bool) -> str:
     normalized = normalize_whitespace(text)
-    if preserve_punctuation:
+    if preserve_commas_periods:
         return normalized
-    return _strip_edge_punctuation(normalized)
+    return _strip_optional_commas_periods(normalized)
 
 
 def _join(words: Sequence[WordToken], config: SegmentationConfig) -> str:
     rendered = (
-        _render_token(word.text, config.preserve_punctuation)
+        _render_token(word.text, config.preserve_commas_periods)
         for word in words
         if word.text.strip()
     )
@@ -147,8 +160,8 @@ def segment_words(
 
     `target_words` aceita 1–4. Com `ignore_prepositions=True`, preposições não
     consomem uma vaga. Tokens `kind="monetary"` são sempre captions isoladas,
-    independentemente das demais opções. A pontuação pode ser preservada ou
-    removida somente nas bordas dos tokens.
+    independentemente das demais opções. `preserve_commas_periods` controla
+    somente vírgulas e pontos nas bordas; ¿ ? ¡ ! são sempre preservados.
     """
 
     cfg = config or SegmentationConfig()

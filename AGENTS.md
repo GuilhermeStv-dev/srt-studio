@@ -25,7 +25,8 @@ O **GitHub é a fonte de verdade técnica**. O Notion é um painel visual/espelh
 
 - Fundação: concluída.
 - Fase 2 — transcrição: pipeline real já validado no Windows; CUDA ainda pode usar fallback CPU enquanto o runtime NVIDIA não estiver completo.
-- Fase 3 — segmentação ES-PY: abordagem atual usa quantidade explícita de palavras e opções de preposição/pontuação/moeda.
+- Fase 3 — segmentação ES-PY: abordagem atual usa quantidade explícita de palavras e opções de preposição, vírgula/ponto e moeda.
+- Fase 4 — exportação SRT: implementação em andamento/validação.
 - Preview Electron: validado no Windows.
 - O fluxo atual chega a `WordToken[] -> normalização -> CaptionCue[]` e mostra captions no desktop.
 
@@ -50,7 +51,8 @@ A UI configura, dispara operações e exibe resultados. **Regras de transcriçã
 - O controle principal de segmentação é **1, 2, 3 ou 4 palavras por caption**; a antiga abordagem de ~12 caracteres foi superada.
 - A opção **ignorar preposições na contagem** permite que a preposição permaneça com outra palavra sem consumir uma vaga, exceto quando a regra monetária exigir separação.
 - Captions de uma única palavra são válidas.
-- O usuário pode manter ou remover pontuação; a remoção não pode destruir separadores internos de números.
+- A opção de pontuação controla **somente vírgulas e pontos** nas bordas. `¿`, `?`, `¡` e `!` são sempre preservados.
+- Remover vírgulas/pontos não pode destruir separadores internos de números como `50.000` ou `1,5`.
 - **Valores monetários reconhecidos são sempre captions isoladas.** Ex.: `con 50 mil` deve virar `con` / `50 mil`, independentemente do alvo e da opção de preposição.
 - Quando a opção monetária `N mil` estiver ligada, `₲200.000`, `200.000 guaraníes`, `200 mil guaraníes` ou `doscientos mil guaraníes` podem virar `200 mil`; nunca `200 mil guaraníes`.
 - Normalização monetária não pode alterar números comuns sem evidência de moeda/contexto financeiro.
@@ -115,4 +117,4 @@ Pare e peça decisão do usuário se a tarefa exigir qualquer uma destas mudanç
 
 ## Próximo checkpoint autorizado
 
-Validar no Windows a nova segmentação por palavras usando o mesmo áudio real ES-PY, incluindo preposições, pontuação e valores monetários. Depois, implementar **exportação SRT pela interface** conforme `docs/ROADMAP.md`.
+Validar no Windows a segmentação por palavras e a regra de pontuação (`?`/`!` sempre preservados), além da exportação SRT pela interface. Depois da importação bem-sucedida no Premiere, avançar conforme `docs/ROADMAP.md`.

@@ -7,7 +7,9 @@
 - Timestamps por palavra como fonte de verdade temporal.
 - O controle principal de segmentação é **quantidade de palavras por caption: 1, 2, 3 ou 4**.
 - O usuário pode ativar **Ignorar preposições na contagem**. Nesse modo, a preposição permanece no texto sem consumir uma vaga; exemplo com alvo de 1 palavra: `para vos` pode ficar junto.
-- O usuário pode ativar/desativar **Manter pontuação**. Quando desligado, sinais nas bordas das palavras são removidos sem destruir pontuação interna de números como `50.000` ou `1,5`.
+- O usuário pode ativar/desativar **Manter vírgulas e pontos**. Essa opção controla somente `,` e `.` nas bordas das palavras/captions.
+- **`¿`, `?`, `¡` e `!` são sempre preservados**, independentemente da opção de vírgulas e pontos.
+- A remoção opcional de `,` e `.` não pode destruir separadores internos de números como `50.000` ou `1,5`.
 - Captions de uma palavra são válidas. Não existe regra genérica obrigando duas ou mais palavras.
 - **Todo valor monetário reconhecido deve ocupar uma caption isolada**, independentemente do alvo de palavras e da opção de preposições. Ex.: `con 50 mil` deve resultar em `con` / `50 mil`.
 - O usuário pode ativar **Valores monetários no formato “mil”**. Quando ligado, valores redondos em milhares são normalizados, por exemplo `₲200.000`, `200.000 guaraníes`, `200 mil guaraníes` ou `doscientos mil guaraníes` → `200 mil`.
