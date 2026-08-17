@@ -1,0 +1,41 @@
+# Node
+node_modules/
+dist/
+out/
+.vite/
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# Models / media / generated output
+models/
+*.gguf
+*.bin
+*.mp3
+*.wav
+*.m4a
+*.mp4
+*.mov
+*.mkv
+output/
+temp/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+release/
+coverage/
