@@ -11,7 +11,9 @@
     "build": "npm --workspace @srt-studio/desktop run build",
     "typecheck": "npm --workspace @srt-studio/desktop run typecheck",
     "test:engine": "python -m unittest discover -s tests/engine -p \"test_*.py\" -v",
-    "engine:health": "python -m engine.cli health"
+    "engine:health": "python -m engine.cli health",
+    "engine:runtime": "python -m engine.cli runtime",
+    "engine:transcribe": "python -m engine.cli transcribe"
   },
   "engines": {
     "node": ">=22"

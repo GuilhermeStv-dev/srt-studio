@@ -4,54 +4,69 @@
 
 ## Fase
 
-**1. Fundação**
+**2. Motor de transcrição — em andamento**
 
-## Concluído nesta base
+## Fundação concluída
 
-- [x] Estrutura inicial do repositório
+- [x] Repositório GitHub e estrutura inicial
 - [x] Workspace Node para o desktop
 - [x] Electron + React + TypeScript configurados
 - [x] Engine Python separado
 - [x] Modelos iniciais `WordToken` e `CaptionCue`
 - [x] Normalização textual básica
 - [x] Validador e renderer SRT básicos
-- [x] CLI de health-check
-- [x] IPC de health-check Electron → Python
-- [x] Testes unitários iniciais
+- [x] IPC Electron → Python
 - [x] CI inicial
-- [x] Documentação de arquitetura
+- [x] Documentação de arquitetura/handoff
 
-## Ainda não implementado
+## Transcrição implementada nesta etapa
 
-- [ ] `faster-whisper`
-- [ ] download/seleção de modelo
-- [ ] extração de áudio de vídeo
-- [ ] timestamps reais por palavra
-- [ ] segmentador ES-PY completo
-- [ ] presets editáveis
-- [ ] preview de captions
-- [ ] exportação pela interface
-- [ ] instalador Windows
+- [x] Adapter isolado para `faster-whisper`
+- [x] Runtime CUDA/CPU selecionado via CTranslate2
+- [x] Preferência CUDA `int8_float16`; fallback CPU `int8`
+- [x] CLI `runtime`
+- [x] CLI `transcribe`
+- [x] `word_timestamps=True`
+- [x] VAD habilitado por padrão
+- [x] Conversão para `WordToken[]`
+- [x] Rejeição de timestamps inválidos/regressivos
+- [x] 15 testes unitários passando sem exigir download do modelo
+- [x] UI desktop com seleção de arquivo, modelo, idioma e preview das primeiras palavras
 
-## Próxima entrega recomendada
+## Ainda precisa de validação em máquina real
 
-Criar um spike do motor de transcrição que aceite um arquivo de áudio e devolva JSON no contrato abaixo:
+- [ ] instalar `faster-whisper` no ambiente de desenvolvimento
+- [ ] baixar/carregar `large-v3`
+- [ ] validar CUDA na RTX local
+- [ ] transcrever um arquivo real ES-PY
+- [ ] medir tempo, VRAM/RAM e qualidade
+- [ ] criar fixture de áudio pequena para regressão
 
-```json
-{
-  "language": "es",
-  "duration": 12.34,
-  "words": [
-    {"text": "Hola", "start": 0.2, "end": 0.55}
-  ]
-}
+## Depois da validação real
+
+1. construir segmentação ES-PY guiada por testes;
+2. ligar palavras → captions;
+3. preview de captions na UI;
+4. exportação SRT pela interface;
+5. presets;
+6. instalador Windows.
+
+## Preview visual
+
+O preview é o próprio aplicativo Electron, não um deploy Vercel.
+
+```powershell
+git clone https://github.com/GuilhermeStv-dev/srt-studio.git
+cd srt-studio
+npm install
+npm run dev
 ```
 
-O spike deve:
+Para habilitar a transcrição local:
 
-1. usar `faster-whisper`;
-2. permitir modelo configurável;
-3. usar CUDA quando disponível e fallback CPU;
-4. nunca depender do Electron;
-5. possuir comando CLI reproduzível;
-6. ter fixture pequena para regressão.
+```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -e ".[transcription]"
+npm run dev
+```

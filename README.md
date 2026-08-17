@@ -4,7 +4,7 @@ Aplicativo desktop Windows para transformar áudio/vídeo em **SRT pronto para e
 
 ## Estado atual
 
-**Fase 1 — Fundação** em andamento.
+**Fase 2 — Motor de transcrição** em andamento. A Fundação já está concluída.
 
 Esta base já contém:
 
@@ -61,7 +61,7 @@ Leia [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) e [`docs/STATUS.md`](docs/ST
 - npm
 - Python 3.11+
 
-O `faster-whisper` ainda não é obrigatório nesta fundação. Ele entra na próxima etapa.
+O `faster-whisper` é uma dependência opcional do engine. Para transcrição real, use `pip install -e ".[transcription]"`. Para desenvolvimento no Windows, Python 3.12 é o ambiente recomendado do projeto.
 
 ## Rodar os testes do engine
 
@@ -88,8 +88,18 @@ npm install
 npm run dev
 ```
 
-Na tela inicial, use **Verificar engine local**. O Electron chama o Python por IPC e mostra o resultado.
+O Electron abre o preview real do aplicativo. A tela permite selecionar mídia, escolher modelo/idioma, verificar o runtime e, quando `faster-whisper` estiver instalado, executar a transcrição e visualizar palavras com timestamps.
+
+## Habilitar transcrição local
+
+```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -e ".[transcription]"
+python -m engine.cli runtime
+npm run dev
+```
 
 ## Próximo passo
 
-Implementar o pipeline `arquivo -> faster-whisper -> WordToken[]`, mantendo o engine independente da interface.
+Validar uma transcrição ES-PY real no Windows e então iniciar o segmentador `WordToken[] -> CaptionCue[]` guiado por testes.
