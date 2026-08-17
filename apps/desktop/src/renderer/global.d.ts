@@ -20,7 +20,7 @@ type CaptionPreview = {
 type SegmentationSettings = {
   target_words: number
   ignore_prepositions: boolean
-  preserve_punctuation: boolean
+  preserve_commas_periods: boolean
   monetary_thousands: boolean
 }
 
@@ -60,7 +60,7 @@ declare global {
         language: string | null
         targetWords: number
         ignorePrepositions: boolean
-        preservePunctuation: boolean
+        preserveCommasPeriods: boolean
         formatMonetaryThousands: boolean
       }): Promise<TranscriptionResult>
       exportSrt(input: {
