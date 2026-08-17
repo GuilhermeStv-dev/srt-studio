@@ -5,8 +5,11 @@ import json
 import sys
 
 from engine import __version__
+from engine.models import CaptionCue
 from engine.normalization import normalize_monetary_tokens
 from engine.segmentation import SegmentationConfig, segment_words
+from engine.srt import export_srt
+from engine.srt.validate import InvalidCueError
 from engine.transcription import (
     TranscriptionError,
     TranscriptionUnavailableError,
@@ -84,6 +87,47 @@ def transcribe(args: argparse.Namespace) -> int:
     return 0
 
 
+def _read_captions_from_stdin() -> tuple[CaptionCue, ...]:
+    raw = sys.stdin.read()
+    if not raw.strip():
+        raise ValueError("Nenhuma caption foi enviada para exportação")
+
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise ValueError("Payload de captions não é JSON válido") from exc
+
+    items = payload.get("captions") if isinstance(payload, dict) else payload
+    if not isinstance(items, list) or not items:
+        raise ValueError("Payload precisa conter uma lista não vazia de captions")
+
+    cues: list[CaptionCue] = []
+    for index, item in enumerate(items, start=1):
+        if not isinstance(item, dict):
+            raise ValueError(f"Caption {index} tem formato inválido")
+        try:
+            text = str(item["text"])
+            start = float(item["start"])
+            end = float(item["end"])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError(f"Caption {index} não possui text/start/end válidos") from exc
+        cues.append(CaptionCue(text=text, start=start, end=end))
+
+    return tuple(cues)
+
+
+def export_srt_command(args: argparse.Namespace) -> int:
+    try:
+        cues = _read_captions_from_stdin()
+        result = export_srt(cues, args.output, overwrite=args.overwrite)
+    except (ValueError, InvalidCueError, FileNotFoundError, FileExistsError, OSError) as exc:
+        print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False), file=sys.stderr)
+        return 5
+
+    emit({"ok": True, **result.to_dict()})
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="srt-studio-engine")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -126,6 +170,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="Exibe valores monetários redondos no formato N mil",
     )
 
+    export_parser = sub.add_parser(
+        "export-srt", help="Valida captions recebidas via stdin e grava um arquivo SRT UTF-8"
+    )
+    export_parser.add_argument("--output", required=True)
+    export_parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Permite sobrescrever um arquivo existente após confirmação externa explícita",
+    )
+
     return parser
 
 
@@ -137,6 +191,8 @@ def main() -> int:
         return runtime(args.device)
     if args.command == "transcribe":
         return transcribe(args)
+    if args.command == "export-srt":
+        return export_srt_command(args)
     return 2
 
 
