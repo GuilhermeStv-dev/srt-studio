@@ -6,167 +6,88 @@ from dataclasses import dataclass
 from typing import Sequence
 
 from engine.models import CaptionCue, WordToken
-from engine.normalization import remove_final_period
+from engine.normalization import normalize_whitespace
 
-# Palavras curtas que normalmente ficam semanticamente ligadas ao termo seguinte.
-# A lista é intencionalmente conservadora: "que" e outros termos ambíguos não entram
-# para evitar forçar junções artificiais.
-_ORPHAN_PRONE = {
+# Preposições práticas para ES/ES-PY. Quando a opção está ativa, elas permanecem
+# na caption, mas não consomem uma vaga da contagem de palavras principais.
+_PREPOSITIONS = {
     "a",
     "al",
+    "ante",
+    "bajo",
     "con",
+    "contra",
     "de",
     "del",
-    "el",
+    "desde",
+    "durante",
     "en",
-    "la",
-    "las",
-    "lo",
-    "los",
-    "o",
+    "entre",
+    "hacia",
+    "hasta",
+    "mediante",
     "para",
     "por",
+    "según",
     "sin",
-    "un",
-    "una",
-    "unos",
-    "unas",
-    "y",
-    "e",
+    "sobre",
+    "tras",
 }
 
-_WORD_EDGE = re.compile(r"^[¿¡\"'“‘([{]*|[?!,;:\"'”’\])}]+$")
+# Remove somente pontuação nas bordas. Pontuação interna fica intacta para não
+# alterar números como 50.000, 1,5 ou outros tokens válidos.
+_EDGE_PUNCTUATION = re.compile(r"^[¿¡\"'“”‘’([{]+|[?!,.;:…\"'“”‘’)\]}]+$")
 
 
 @dataclass(frozen=True, slots=True)
 class SegmentationConfig:
-    target_chars: int = 12
-    hard_max_chars: int = 24
-    preferred_max_duration: float = 2.2
-    strong_pause: float = 0.60
+    target_words: int = 2
+    ignore_prepositions: bool = True
+    preserve_punctuation: bool = True
 
     def validate(self) -> None:
-        if self.target_chars <= 0:
-            raise ValueError("target_chars deve ser maior que zero")
-        if self.hard_max_chars < self.target_chars:
-            raise ValueError("hard_max_chars não pode ser menor que target_chars")
-        if self.preferred_max_duration <= 0:
-            raise ValueError("preferred_max_duration deve ser maior que zero")
-        if self.strong_pause < 0:
-            raise ValueError("strong_pause não pode ser negativo")
+        if self.target_words not in {1, 2, 3, 4}:
+            raise ValueError("target_words deve ser 1, 2, 3 ou 4")
 
 
-def _lexical(text: str) -> str:
-    value = text.strip().lower()
+def _strip_edge_punctuation(text: str) -> str:
+    value = text.strip()
     previous = None
     while value != previous:
         previous = value
-        value = _WORD_EDGE.sub("", value).strip()
+        value = _EDGE_PUNCTUATION.sub("", value).strip()
     return value
 
 
-def _is_orphan_prone(text: str) -> bool:
-    return _lexical(text) in _ORPHAN_PRONE
+def _lexical(text: str) -> str:
+    return _strip_edge_punctuation(text).lower()
 
 
-def _join(words: Sequence[WordToken]) -> str:
-    return remove_final_period(" ".join(word.text.strip() for word in words if word.text.strip()))
+def _counts_toward_target(text: str, config: SegmentationConfig) -> bool:
+    lexical = _lexical(text)
+    if not lexical:
+        return False
+    return not (config.ignore_prepositions and lexical in _PREPOSITIONS)
 
 
-def _internal_pause_penalty(words: Sequence[WordToken], config: SegmentationConfig) -> float:
-    penalty = 0.0
-    for left, right in zip(words, words[1:]):
-        pause = max(0.0, right.start - left.end)
-        if pause >= config.strong_pause:
-            # Cruzar uma pausa forte deve ser excepcional.
-            penalty += 120.0 + pause * 25.0
-        elif pause >= 0.35:
-            penalty += pause * 12.0
-    return penalty
+def _render_token(text: str, preserve_punctuation: bool) -> str:
+    normalized = normalize_whitespace(text)
+    if preserve_punctuation:
+        return normalized
+    return _strip_edge_punctuation(normalized)
 
 
-def _candidate_cost(
-    words: Sequence[WordToken],
-    *,
-    starts_at_zero: bool,
-    ends_at_last: bool,
-    next_pause: float,
-    config: SegmentationConfig,
-) -> float:
-    text = _join(words)
-    if not text:
-        return math.inf
-
-    char_count = len(text)
-    duration = words[-1].end - words[0].start
-    if duration <= 0:
-        return math.inf
-
-    # A meta de caracteres é uma preferência: palavras longas isoladas continuam válidas.
-    if len(words) > 1 and char_count > config.hard_max_chars:
-        return math.inf
-
-    cost = float((char_count - config.target_chars) ** 2)
-
-    # Uma palavra só é válida (palavra longa, pausa, fim de frase), mas deve ser
-    # claramente menos atraente quando duas ou mais palavras cabem bem juntas.
-    if len(words) == 1 and not (starts_at_zero and ends_at_last):
-        cost += 48.0
-        if char_count <= 4:
-            cost += 22.0
-
-    # Artigos/preposições podem iniciar um cue quando estão junto do complemento
-    # (ex.: "los premios", "en NuevaBet"). O que evitamos é deixá-los sozinhos
-    # ou pendurados no fim de um cue.
-    if len(words) == 1 and _is_orphan_prone(words[0].text):
-        cost += 90.0
-    if not ends_at_last and _is_orphan_prone(words[-1].text):
-        cost += 52.0
-
-    # Punição suave para cues longos no tempo; não é um corte rígido.
-    if duration > config.preferred_max_duration:
-        cost += (duration - config.preferred_max_duration) * 14.0
-
-    cost += _internal_pause_penalty(words, config)
-
-    # Premia limites naturais de fala/pontuação.
-    tail = words[-1].text.rstrip()
-    if tail.endswith(("?", "!")):
-        cost -= 12.0
-    elif tail.endswith((",", ";", ":")):
-        cost -= 4.0
-
-    if next_pause >= config.strong_pause:
-        cost -= min(18.0, 8.0 + next_pause * 8.0)
-    elif next_pause >= 0.35:
-        cost -= next_pause * 8.0
-
-    # O último cue não deve ser artificialmente castigado só por ficar um pouco curto.
-    if ends_at_last and char_count < config.target_chars:
-        cost *= 0.82
-
-    return max(cost, 0.0)
+def _join(words: Sequence[WordToken], config: SegmentationConfig) -> str:
+    rendered = (
+        _render_token(word.text, config.preserve_punctuation)
+        for word in words
+        if word.text.strip()
+    )
+    return normalize_whitespace(" ".join(part for part in rendered if part))
 
 
-def segment_words(
-    words: Sequence[WordToken],
-    config: SegmentationConfig | None = None,
-) -> tuple[CaptionCue, ...]:
-    """Segmenta WordToken em cues usando otimização global de baixo custo.
-
-    O algoritmo usa programação dinâmica para evitar decisões gulosas que deixam
-    um último cue ruim. O alvo de caracteres é preferência; integridade temporal
-    e não-overlap são restrições.
-    """
-
-    cfg = config or SegmentationConfig()
-    cfg.validate()
-
-    if not words:
-        return ()
-
+def _validate_words(words: Sequence[WordToken]) -> None:
     previous_start = -math.inf
-    previous_end = -math.inf
     for word in words:
         if not word.text.strip():
             raise ValueError("WordToken vazio não pode ser segmentado")
@@ -176,72 +97,82 @@ def segment_words(
             raise ValueError(f"WordToken inválido: {word.text}")
         if word.start < previous_start:
             raise ValueError("WordToken com timestamp regressivo")
-        # Overlap real entre palavras é tolerado pelo ASR, mas nunca pode produzir cue regressivo.
         previous_start = word.start
-        previous_end = max(previous_end, word.end)
 
-    n = len(words)
-    best = [math.inf] * (n + 1)
-    previous_cut: list[int | None] = [None] * (n + 1)
-    best[0] = 0.0
 
-    for start in range(n):
-        if not math.isfinite(best[start]):
-            continue
+def _build_groups(
+    words: Sequence[WordToken],
+    config: SegmentationConfig,
+) -> list[list[WordToken]]:
+    groups: list[list[WordToken]] = []
+    current: list[WordToken] = []
+    counted_words = 0
 
-        for end in range(start, n):
-            group = words[start : end + 1]
-            text = _join(group)
-            if not text:
-                continue
-            if len(group) > 1 and len(text) > cfg.hard_max_chars:
-                break
+    for word in words:
+        current.append(word)
+        if _counts_toward_target(word.text, config):
+            counted_words += 1
 
-            next_pause = 0.0
-            if end + 1 < n:
-                next_pause = max(0.0, words[end + 1].start - words[end].end)
+        if counted_words >= config.target_words:
+            groups.append(current)
+            current = []
+            counted_words = 0
 
-            candidate = best[start] + _candidate_cost(
-                group,
-                starts_at_zero=start == 0,
-                ends_at_last=end == n - 1,
-                next_pause=next_pause,
-                config=cfg,
-            )
+    if current:
+        # Se o áudio terminar apenas com uma preposição ignorada na contagem,
+        # evita uma caption órfã e anexa o restante à caption anterior.
+        if counted_words == 0 and groups:
+            groups[-1].extend(current)
+        else:
+            groups.append(current)
 
-            if candidate < best[end + 1]:
-                best[end + 1] = candidate
-                previous_cut[end + 1] = start
+    return groups
 
-    if previous_cut[n] is None:
-        raise ValueError("Não foi possível encontrar segmentação válida")
 
-    ranges: list[tuple[int, int]] = []
-    cursor = n
-    while cursor > 0:
-        start = previous_cut[cursor]
-        if start is None:
-            raise ValueError("Segmentação incompleta")
-        ranges.append((start, cursor))
-        cursor = start
-    ranges.reverse()
+def segment_words(
+    words: Sequence[WordToken],
+    config: SegmentationConfig | None = None,
+) -> tuple[CaptionCue, ...]:
+    """Segmenta WordToken por quantidade previsível de palavras principais.
+
+    `target_words` aceita 1–4. Com `ignore_prepositions=True`, preposições
+    permanecem no texto e acompanham a palavra seguinte sem consumir uma vaga.
+    A pontuação pode ser preservada ou removida somente nas bordas dos tokens.
+    """
+
+    cfg = config or SegmentationConfig()
+    cfg.validate()
+
+    if not words:
+        return ()
+
+    _validate_words(words)
+    groups = _build_groups(words, cfg)
 
     cues: list[CaptionCue] = []
     previous_cue_end = -math.inf
-    for start, end_exclusive in ranges:
-        group = words[start:end_exclusive]
-        text = _join(group)
+
+    for group in groups:
+        text = _join(group, cfg)
+        if not text:
+            continue
+
         start_time = group[0].start
         end_time = max(word.end for word in group)
 
         if start_time < previous_cue_end:
-            # ASR pode devolver pequeno overlap entre palavras vizinhas. Ajustamos apenas
-            # o início do cue derivado, nunca o timestamp original do WordToken.
+            # Pequenos overlaps podem vir do ASR. Ajustamos somente o cue derivado.
             start_time = previous_cue_end
         if end_time <= start_time:
             raise ValueError(f"Cue sem duração positiva: {text}")
 
-        cues.append(CaptionCue(text=text, start=round(start_time, 3), end=round(end_time, 3)))
+        cues.append(
+            CaptionCue(
+                text=text,
+                start=round(start_time, 3),
+                end=round(end_time, 3),
+            )
+        )
         previous_cue_end = end_time
 
     return tuple(cues)
