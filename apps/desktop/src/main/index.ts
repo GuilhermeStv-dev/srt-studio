@@ -3,6 +3,9 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import path from 'node:path'
 
+const squirrelStartup = process.platform === 'win32' && require('electron-squirrel-startup')
+if (squirrelStartup) app.quit()
+
 const PROGRESS_PREFIX = 'SRT_PROGRESS '
 
 type ActiveTranscription = {
@@ -234,6 +237,8 @@ function createWindow(): void {
     void win.loadFile(path.join(__dirname, '../renderer/index.html'))
   }
 }
+
+app.setAppUserModelId('com.squirrel.SRTStudio.SRTStudio')
 
 app.whenReady().then(() => {
   ipcMain.handle('engine:health', async () => runEngineJson(['health']))
