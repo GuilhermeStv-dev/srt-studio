@@ -20,6 +20,14 @@ module.exports = {
   packagerConfig: {
     asar: true,
     junk: false,
+    // Forge 7 ignora /^\/out\// por padrão, mas electron-vite usa out/ como
+    // build de produção. Sobrescrevemos o ignore para preservar esse entrypoint.
+    ignore: [
+      /^\/src\//,
+      /^\/forge\.config\.js$/,
+      /^\/tsconfig\.json$/,
+      /^\/electron\.vite\.config\.(js|ts)$/
+    ],
     name: 'SRT Studio',
     executableName: 'SRT Studio',
     extraResource: [engineRuntime],
