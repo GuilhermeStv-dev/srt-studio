@@ -11,6 +11,12 @@ type TranscriptionWord = {
   probability?: number | null
 }
 
+type CaptionPreview = {
+  text: string
+  start: number
+  end: number
+}
+
 type TranscriptionResult = {
   ok: true
   language: string
@@ -20,18 +26,20 @@ type TranscriptionResult = {
   device: string
   compute_type: string
   words: TranscriptionWord[]
+  captions: CaptionPreview[]
 }
 
 declare global {
   interface Window {
     srtStudio: {
-      engineHealth(): Promise<{ ok: boolean; engine: string; version: string }>
+      engineHealth(): Promise<{ ok: boolean; engine: string; version: string; python_version: string; python_executable: string }>
       transcriptionRuntime(): Promise<RuntimeInfo>
       selectMedia(): Promise<{ canceled: boolean; filePath: string | null }>
       transcribe(input: {
         filePath: string
         model: string
         language: string | null
+        targetChars: number
       }): Promise<TranscriptionResult>
     }
   }
