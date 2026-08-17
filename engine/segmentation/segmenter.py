@@ -109,6 +109,18 @@ def _build_groups(
     counted_words = 0
 
     for word in words:
+        # Valor monetário reconhecido tem precedência absoluta: fecha a caption
+        # anterior, ocupa uma caption própria e reinicia a contagem seguinte.
+        # Portanto "con 50 mil" vira "con" / "50 mil", mesmo que preposições
+        # estejam sendo ignoradas na contagem.
+        if word.kind == "monetary":
+            if current:
+                groups.append(current)
+                current = []
+                counted_words = 0
+            groups.append([word])
+            continue
+
         current.append(word)
         if _counts_toward_target(word.text, config):
             counted_words += 1
@@ -119,12 +131,10 @@ def _build_groups(
             counted_words = 0
 
     if current:
-        # Se o áudio terminar apenas com uma preposição ignorada na contagem,
-        # evita uma caption órfã e anexa o restante à caption anterior.
-        if counted_words == 0 and groups:
-            groups[-1].extend(current)
-        else:
-            groups.append(current)
+        # No fim do áudio, uma preposição ainda pode ficar sozinha. Isso é permitido:
+        # a regra de isolamento monetário é mais forte do que a tentativa de anexar
+        # preposições ao grupo vizinho.
+        groups.append(current)
 
     return groups
 
@@ -135,9 +145,10 @@ def segment_words(
 ) -> tuple[CaptionCue, ...]:
     """Segmenta WordToken por quantidade previsível de palavras principais.
 
-    `target_words` aceita 1–4. Com `ignore_prepositions=True`, preposições
-    permanecem no texto e acompanham a palavra seguinte sem consumir uma vaga.
-    A pontuação pode ser preservada ou removida somente nas bordas dos tokens.
+    `target_words` aceita 1–4. Com `ignore_prepositions=True`, preposições não
+    consomem uma vaga. Tokens `kind="monetary"` são sempre captions isoladas,
+    independentemente das demais opções. A pontuação pode ser preservada ou
+    removida somente nas bordas dos tokens.
     """
 
     cfg = config or SegmentationConfig()
