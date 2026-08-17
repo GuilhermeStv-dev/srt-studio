@@ -13,7 +13,7 @@ python -m unittest discover -s tests/engine -p "test_*.py" -v
 python -m engine.cli health
 ```
 
-Estado em 2026-08-17: **23 testes passando**.
+Estado em 2026-08-17: **24 testes passando**.
 
 ## Transcrição
 
@@ -34,6 +34,7 @@ Estado em 2026-08-17: **23 testes passando**.
 - alvo de caracteres configurável, padrão 12;
 - limite de segurança configurável;
 - penalidades para conectores isolados/pendurados;
+- preferência por captions com 2+ palavras quando cabem de forma razoável;
 - pausas e pontuação forte influenciam boundaries;
 - normalização de ponto final no texto do cue;
 - proteção contra cue sem duração e overlap;
