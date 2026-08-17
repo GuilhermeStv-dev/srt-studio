@@ -138,7 +138,7 @@ app.whenReady().then(() => {
       language: string | null
       targetWords: number
       ignorePrepositions: boolean
-      preservePunctuation: boolean
+      preserveCommasPeriods: boolean
       formatMonetaryThousands: boolean
     }) => {
       const args = [
@@ -151,7 +151,7 @@ app.whenReady().then(() => {
       ]
       if (input.language) args.push('--language', input.language)
       if (!input.ignorePrepositions) args.push('--count-prepositions')
-      if (!input.preservePunctuation) args.push('--no-punctuation')
+      if (!input.preserveCommasPeriods) args.push('--remove-commas-periods')
       if (input.formatMonetaryThousands) args.push('--monetary-thousands')
       return runEngineJson(args)
     }
