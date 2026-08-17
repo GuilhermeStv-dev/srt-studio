@@ -33,7 +33,10 @@ function App() {
   const [filePath, setFilePath] = useState<string | null>(null)
   const [model, setModel] = useState('large-v3')
   const [language, setLanguage] = useState('es')
-  const [targetChars, setTargetChars] = useState(12)
+  const [targetWords, setTargetWords] = useState(2)
+  const [ignorePrepositions, setIgnorePrepositions] = useState(true)
+  const [preservePunctuation, setPreservePunctuation] = useState(true)
+  const [formatMonetaryThousands, setFormatMonetaryThousands] = useState(false)
   const [transcription, setTranscription] = useState<TranscriptionState>({
     status: 'idle',
     message: 'Selecione um arquivo para iniciar a primeira transcrição real.'
@@ -97,14 +100,17 @@ function App() {
         filePath,
         model,
         language: language === 'auto' ? null : language,
-        targetChars
+        targetWords,
+        ignorePrepositions,
+        preservePunctuation,
+        formatMonetaryThousands
       })
       const fallbackLabel = result.runtime_warning ? ' · fallback CUDA → CPU' : ''
       setTranscription({
         status: 'success',
         message: `${result.captions.length} captions · ${result.words.length} palavras · ${result.language} · ${result.device.toUpperCase()}${fallbackLabel} · ${result.duration.toFixed(1)}s`,
         words: result.words.slice(0, 24),
-        captions: result.captions.slice(0, 18)
+        captions: result.captions.slice(0, 24)
       })
     } catch (error) {
       setTranscription({
@@ -123,12 +129,12 @@ function App() {
     <main className="shell">
       <section className="hero">
         <div className="hero-topline">
-          <span className="eyebrow">TRANSCRIÇÃO · 0.2 DEV</span>
+          <span className="eyebrow">TRANSCRIÇÃO · 0.3 DEV</span>
           <span className={`status-dot ${runtime.status}`}>{runtime.message}</span>
         </div>
         <h1>SRT Studio</h1>
         <p>
-          Transcrição local e captions inteligentes para um SRT limpo, previsível e pronto para o Premiere.
+          Transcrição local e captions previsíveis para um SRT rápido de editar no Premiere.
         </p>
       </section>
 
@@ -143,7 +149,7 @@ function App() {
         </article>
 
         <article className="card controls">
-          <span className="label">2 · Modelo</span>
+          <span className="label">2 · Transcrição e segmentação</span>
           <div className="field-row three">
             <label>
               Modelo Whisper
@@ -163,15 +169,54 @@ function App() {
               </select>
             </label>
             <label>
-              Alvo da caption
-              <select value={targetChars} onChange={(event) => setTargetChars(Number(event.target.value))}>
-                <option value={10}>10 caracteres</option>
-                <option value={12}>12 caracteres · padrão</option>
-                <option value={14}>14 caracteres</option>
-                <option value={16}>16 caracteres</option>
+              Palavras por caption
+              <select value={targetWords} onChange={(event) => setTargetWords(Number(event.target.value))}>
+                <option value={1}>1 palavra</option>
+                <option value={2}>2 palavras · padrão</option>
+                <option value={3}>3 palavras</option>
+                <option value={4}>4 palavras</option>
               </select>
             </label>
           </div>
+
+          <div className="option-grid">
+            <label className="toggle-card">
+              <input
+                type="checkbox"
+                checked={ignorePrepositions}
+                onChange={(event) => setIgnorePrepositions(event.target.checked)}
+              />
+              <span>
+                <strong>Ignorar preposições na contagem</strong>
+                <small>Ex.: com 1 palavra, “para vos” pode permanecer junto.</small>
+              </span>
+            </label>
+
+            <label className="toggle-card">
+              <input
+                type="checkbox"
+                checked={preservePunctuation}
+                onChange={(event) => setPreservePunctuation(event.target.checked)}
+              />
+              <span>
+                <strong>Manter pontuação</strong>
+                <small>Preserva vírgulas, ¿ ?, ¡ ! e outros sinais da transcrição.</small>
+              </span>
+            </label>
+
+            <label className="toggle-card">
+              <input
+                type="checkbox"
+                checked={formatMonetaryThousands}
+                onChange={(event) => setFormatMonetaryThousands(event.target.checked)}
+              />
+              <span>
+                <strong>Valores monetários no formato “mil”</strong>
+                <small>Ex.: ₲200.000 / 200 mil guaraníes → 200 mil. Outros números não são alterados.</small>
+              </span>
+            </label>
+          </div>
+
           <div className="engine-line">
             <span>{health.message}</span>
             <button className="ghost" onClick={checkRuntime}>Reverificar runtime</button>
@@ -181,7 +226,7 @@ function App() {
         <article className="card result">
           <div className="result-header">
             <div>
-              <span className="label">3 · Spike de transcrição</span>
+              <span className="label">3 · Preview das captions</span>
               <h2>{transcription.message}</h2>
             </div>
             <button
