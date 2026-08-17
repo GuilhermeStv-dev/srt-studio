@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import './style.css'
 
@@ -24,9 +24,19 @@ type ExportState =
   | { status: 'success'; message: string; path: string }
   | { status: 'error'; message: string }
 
+const MEDIA_EXTENSIONS = new Set([
+  'mp3', 'wav', 'm4a', 'aac', 'flac', 'ogg',
+  'mp4', 'mov', 'mkv', 'avi', 'webm'
+])
+
 function fileName(filePath: string | null): string {
   if (!filePath) return 'Nenhum arquivo selecionado'
   return filePath.split(/[\\/]/).pop() || filePath
+}
+
+function hasSupportedMediaExtension(name: string): boolean {
+  const extension = name.split('.').pop()?.toLowerCase()
+  return Boolean(extension && MEDIA_EXTENSIONS.has(extension))
 }
 
 function App() {
@@ -39,6 +49,9 @@ function App() {
     message: 'Verificando faster-whisper…'
   })
   const [filePath, setFilePath] = useState<string | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
+  const [sourceMessage, setSourceMessage] = useState<string | null>(null)
+  const dragDepth = useRef(0)
   const [model, setModel] = useState('large-v3')
   const [language, setLanguage] = useState('es')
   const [targetWords, setTargetWords] = useState(2)
@@ -55,6 +68,19 @@ function App() {
   })
 
   const selectedName = useMemo(() => fileName(filePath), [filePath])
+
+  function applySourceFile(nextFilePath: string) {
+    setFilePath(nextFilePath)
+    setSourceMessage(null)
+    setTranscription({
+      status: 'idle',
+      message: 'Arquivo pronto. A transcrição ainda não altera nem sobrescreve o original.'
+    })
+    setExportState({
+      status: 'idle',
+      message: 'O SRT ficará disponível depois da transcrição.'
+    })
+  }
 
   async function checkEngine() {
     setHealth({ status: 'loading', message: 'Verificando Python…' })
@@ -96,15 +122,53 @@ function App() {
   async function selectMedia() {
     const result = await window.srtStudio.selectMedia()
     if (!result.canceled && result.filePath) {
-      setFilePath(result.filePath)
-      setTranscription({
-        status: 'idle',
-        message: 'Arquivo pronto. A transcrição ainda não altera nem sobrescreve o original.'
-      })
-      setExportState({
-        status: 'idle',
-        message: 'O SRT ficará disponível depois da transcrição.'
-      })
+      applySourceFile(result.filePath)
+    }
+  }
+
+  function handleDragEnter(event: React.DragEvent<HTMLElement>) {
+    event.preventDefault()
+    if (!event.dataTransfer.types.includes('Files')) return
+    dragDepth.current += 1
+    setIsDragging(true)
+  }
+
+  function handleDragOver(event: React.DragEvent<HTMLElement>) {
+    event.preventDefault()
+    if (!event.dataTransfer.types.includes('Files')) return
+    event.dataTransfer.dropEffect = 'copy'
+    setIsDragging(true)
+  }
+
+  function handleDragLeave(event: React.DragEvent<HTMLElement>) {
+    event.preventDefault()
+    dragDepth.current = Math.max(0, dragDepth.current - 1)
+    if (dragDepth.current === 0) setIsDragging(false)
+  }
+
+  function handleDrop(event: React.DragEvent<HTMLElement>) {
+    event.preventDefault()
+    dragDepth.current = 0
+    setIsDragging(false)
+
+    const droppedFile = event.dataTransfer.files[0]
+    if (!droppedFile) return
+
+    const mediaMime = droppedFile.type.startsWith('audio/') || droppedFile.type.startsWith('video/')
+    if (!mediaMime && !hasSupportedMediaExtension(droppedFile.name)) {
+      setSourceMessage('Solte um arquivo de áudio ou vídeo compatível.')
+      return
+    }
+
+    try {
+      const droppedPath = window.srtStudio.filePathFor(droppedFile)
+      if (!droppedPath) {
+        setSourceMessage('Não foi possível obter o caminho local desse arquivo.')
+        return
+      }
+      applySourceFile(droppedPath)
+    } catch (error) {
+      setSourceMessage(error instanceof Error ? error.message : 'Falha ao receber o arquivo arrastado.')
     }
   }
 
@@ -170,13 +234,23 @@ function App() {
   useEffect(() => {
     void checkEngine()
     void checkRuntime()
+
+    const preventNativeFileOpen = (event: DragEvent) => {
+      if (event.dataTransfer?.types.includes('Files')) event.preventDefault()
+    }
+    window.addEventListener('dragover', preventNativeFileOpen)
+    window.addEventListener('drop', preventNativeFileOpen)
+    return () => {
+      window.removeEventListener('dragover', preventNativeFileOpen)
+      window.removeEventListener('drop', preventNativeFileOpen)
+    }
   }, [])
 
   return (
     <main className="shell">
       <section className="hero">
         <div className="hero-topline">
-          <span className="eyebrow">TRANSCRIÇÃO · 0.4 DEV</span>
+          <span className="eyebrow">TRANSCRIÇÃO · 0.5 DEV</span>
           <span className={`status-dot ${runtime.status}`}>{runtime.message}</span>
         </div>
         <h1>SRT Studio</h1>
@@ -186,11 +260,25 @@ function App() {
       </section>
 
       <section className="workspace">
-        <article className="card primary">
+        <article
+          className={`card primary source-card ${isDragging ? 'dragging' : ''}`}
+          onDragEnter={handleDragEnter}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
+          {isDragging && (
+            <div className="drop-overlay" aria-hidden="true">
+              <strong>Solte o arquivo aqui</strong>
+              <span>Áudio ou vídeo local</span>
+            </div>
+          )}
           <div className="card-copy">
             <span className="label">1 · Arquivo de origem</span>
             <h2>{selectedName}</h2>
             <p>{filePath || 'Áudio ou vídeo local. O arquivo original nunca é modificado.'}</p>
+            <small className="source-hint">Arraste um arquivo para este cartão ou use o seletor.</small>
+            {sourceMessage && <small className="source-error">{sourceMessage}</small>}
           </div>
           <button className="secondary" onClick={selectMedia}>Selecionar arquivo</button>
         </article>
@@ -302,8 +390,12 @@ function App() {
                 {exportState.status === 'success' && <small>{exportState.path}</small>}
               </div>
 
+              <div className="preview-heading">
+                <strong>Todas as captions</strong>
+                <small>{transcription.captions.length} itens</small>
+              </div>
               <div className="caption-preview">
-                {transcription.captions.slice(0, 24).map((caption, index) => (
+                {transcription.captions.map((caption, index) => (
                   <div className="caption-row" key={`${caption.start}-${index}`}>
                     <span className="caption-number">{String(index + 1).padStart(2, '0')}</span>
                     <strong>{caption.text}</strong>
@@ -311,11 +403,8 @@ function App() {
                   </div>
                 ))}
               </div>
-              {transcription.captions.length > 24 && (
-                <p className="preview-note">Preview mostrando as primeiras 24 de {transcription.captions.length} captions. A exportação usa todas.</p>
-              )}
               <details className="raw-words">
-                <summary>Ver palavras e timestamps brutos</summary>
+                <summary>Ver amostra de palavras e timestamps brutos</summary>
                 <div className="word-preview">
                   {transcription.words.map((word, index) => (
                     <span className="word-chip" key={`${word.start}-${index}`}>
