@@ -2,7 +2,7 @@
 
 ## Estado
 
-O SRT Studio tem a Fundação concluída. A **Fase 2 (transcrição)** já passou por teste real no Windows, incluindo fallback CPU e correção UTF-8. A **Fase 3 (segmentação ES-PY)** está migrando de contagem rígida para segmentação inteligente por alvo + cadência + coesão curta. A **Fase 4 (SRT Premiere-safe)** já exporta SRT no Windows e aguarda confirmação final de importação no Premiere. A **Fase 5 (desktop funcional)** começou com drag-and-drop e preview completo de captions.
+O SRT Studio tem a Fundação concluída. A **Fase 2 (transcrição)** já passou por teste real no Windows, incluindo fallback CPU e correção UTF-8. A **Fase 3 (segmentação ES-PY)** usa segmentação inteligente por alvo + cadência + coesão curta. A **Fase 4 (SRT Premiere-safe)** já exporta SRT no Windows e aguarda confirmação final de importação no Premiere. A **Fase 5 (desktop funcional)** já inclui drag-and-drop, preview completo e implementação de progresso/cancelamento aguardando validação real no Windows.
 
 Repositório: `GuilhermeStv-dev/srt-studio`, branch estável `main`. Mudanças devem seguir branch + PR.
 
@@ -28,6 +28,16 @@ npm run build
 - Electron usa `.venv` do repositório quando ela existe;
 - UTF-8 é forçado no subprocesso Python;
 - pipeline real ES-PY já foi executado com sucesso via CPU fallback.
+
+### Progresso da transcrição
+
+- `transcribe_file(..., progress_callback=...)` aceita callback opcional sem alterar o uso existente;
+- estágios: `preparing`, `loading_model`, `transcribing`, `finalizing` e `completed`;
+- preparação/carregamento/finalização usam progresso indeterminado porque não existe percentual confiável nesses trechos;
+- durante inferência, `collect_word_tokens` calcula progresso por `segment.end / duração do áudio`;
+- inferência é limitada a `0.99`; `1.0` só é emitido depois de normalização/segmentação concluídas pelo CLI;
+- `engine.cli transcribe --progress-events` escreve eventos prefixados por `SRT_PROGRESS ` em stderr e preserva o JSON final em stdout;
+- stderr normal continua reservado para erros.
 
 ## Segmentação atual — D-012
 
@@ -95,7 +105,13 @@ Esses exemplos vieram de validação real do usuário e estão cobertos por test
 - o cartão dá feedback visual enquanto um arquivo está sobre a área de drop;
 - o preview renderiza todas as captions dentro de uma área rolável;
 - WordTokens brutos continuam como amostra técnica, não como preview principal;
-- progresso/cancelamento ainda não foram implementados e devem ser um PR separado.
+- renderer assina `engine:transcription-progress` via preload;
+- carregamento do modelo mostra barra indeterminada; inferência mostra percentual real;
+- somente uma transcrição pode ficar ativa por vez no main process;
+- `engine:cancel-transcription` marca o job como cancelado e encerra apenas o processo Python ativo;
+- o resultado de cancelamento é `{ ok: false, cancelled: true }`, não um erro genérico;
+- arquivo/configurações ficam bloqueados durante a execução para evitar estado ambíguo;
+- não gerar/exportar resultado parcial após cancelamento.
 
 ## Setup Windows
 
@@ -111,8 +127,10 @@ npm run dev
 No Windows:
 
 1. dar `git pull` e abrir `npm run dev`;
-2. repetir exatamente o áudio ES-PY usado na calibração com alvo 1;
-3. validar `¿qué tal?`, `participar en`, `un juego?`, `¿Quién se` / `anima?` e `acá ya`;
-4. anotar qualquer fronteira que ainda pareça artificial e transformá-la em fixture/teste antes de mudar o algoritmo;
-5. importar um SRT exportado no Adobe Premiere para fechar Fase 4;
-6. depois estabilizar a Fase 3, seguir para progresso/cancelamento da transcrição.
+2. repetir o áudio ES-PY usado na calibração e validar as novas fronteiras inteligentes;
+3. observar a barra: indeterminada ao carregar o modelo e percentual durante a inferência;
+4. concluir uma transcrição e confirmar que o preview/exportação continuam normais;
+5. iniciar outra transcrição e clicar **Cancelar** durante a inferência;
+6. confirmar que a UI volta ao estado ocioso, não exibe captions parciais e permite transcrever novamente;
+7. importar um SRT exportado no Adobe Premiere para fechar Fase 4;
+8. novos cortes artificiais devem virar fixtures/testes antes de ajustar o segmentador.
