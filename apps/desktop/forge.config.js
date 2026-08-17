@@ -46,8 +46,7 @@ module.exports = {
         throw new Error('O instalador Windows deve ser gerado em um host Windows.')
       }
 
-      const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm'
-      run(npmCommand, ['run', 'build'], __dirname)
+      run('cmd.exe', ['/d', '/s', '/c', 'npm run build'], __dirname)
       run(
         'pwsh',
         ['-ExecutionPolicy', 'Bypass', '-File', path.join(repoRoot, 'scripts', 'build-engine.ps1')],
