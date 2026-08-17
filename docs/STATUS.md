@@ -4,8 +4,9 @@
 
 ## Fase
 
-**2. Motor de transcrição — primeiro teste real concluído**  
-**3. Segmentação ES-PY — migração para contagem por palavras em validação**
+**2. Motor de transcrição — concluído funcionalmente**  
+**3. Segmentação ES-PY — contagem por palavras em validação real**  
+**4. SRT Premiere-safe — implementado em código, aguardando validação no Premiere**
 
 ## Fundação concluída
 
@@ -44,8 +45,9 @@
 - [x] controle explícito de `1`, `2`, `3` ou `4` palavras por caption
 - [x] opção para ignorar preposições na contagem
 - [x] captions de uma palavra permitidas
-- [x] opção para manter/remover pontuação
-- [x] remoção de pontuação não danifica separadores internos como `50.000` / `1,5`
+- [x] opção **Manter vírgulas e pontos** controla somente `,` e `.` nas bordas
+- [x] `¿`, `?`, `¡` e `!` são sempre preservados
+- [x] remoção de `,`/`.` não danifica `50.000` / `1,5`
 - [x] normalização monetária conservadora
 - [x] opção `Valores monetários no formato “mil”`
 - [x] `200 mil guaraníes` → `200 mil` quando a opção está ligada
@@ -55,36 +57,52 @@
 - [x] cues com duração positiva e sem overlap
 - [x] preview de captions conectado ao resultado da transcrição
 
-A abordagem anterior baseada em aproximadamente 12 caracteres foi superada pela decisão D-011.
+## SRT Premiere-safe — implementação atual
 
-## Validação atual
+- [x] renderer SRT com timestamps SubRip
+- [x] validação final de cue vazio/duração zero/overlap/regressão
+- [x] exportação UTF-8 sem BOM
+- [x] quebra de linha CRLF
+- [x] CLI `export-srt` recebendo captions via stdin
+- [x] botão **Exportar SRT** no desktop
+- [x] `Save As` sugerindo o nome da mídia com `.srt`
+- [x] sobrescrita bloqueada por padrão
+- [x] substituição exige confirmação explícita
+- [x] preview pode mostrar só as primeiras captions, mas a exportação usa todas
 
-**37 testes do engine passando na CI** na branch da migração por palavras.  
-Typecheck e build desktop são checks obrigatórios do PR.
+## Validação automatizada
+
+A branch atual adiciona regressões para:
+
+- `?` / `!` preservados mesmo com vírgulas/pontos desligados;
+- separadores numéricos protegidos;
+- UTF-8 no SRT;
+- CRLF;
+- não sobrescrever arquivo existente sem autorização;
+- validar antes de criar o arquivo;
+- exportação pelo CLI.
 
 ## Ainda precisa de validação em máquina real
 
-- [ ] validar visualmente os novos controles de 1–4 palavras
-- [ ] repetir áudio ES-PY real com 1, 2, 3 e 4 palavras
-- [ ] validar `Ignorar preposições na contagem`
-- [ ] validar `Manter pontuação` ligado/desligado
-- [ ] validar valores monetários `50 mil`, `100 mil`, `200 mil` em fala real
-- [ ] confirmar que o valor monetário fica sozinho na caption
+- [ ] repetir áudio ES-PY real com a configuração de palavras desejada
+- [ ] confirmar `?` / `!` sempre preservados
+- [ ] validar `,` / `.` ligado e desligado
+- [ ] validar valores monetários em fala real
+- [ ] exportar `.srt` pela interface
+- [ ] importar o SRT no Adobe Premiere
+- [ ] confirmar acentos, timestamps e sincronia no Premiere
 - [ ] concluir CUDA/cuDNN para testar inferência GPU sem fallback
-- [ ] medir tempo, VRAM/RAM e qualidade em CUDA
 
 ## Próximas entregas
 
-1. validar no Windows a segmentação por palavras e opções novas;
-2. concluir/validar runtime CUDA;
-3. exportar SRT pela interface;
-4. histórico/preview completo da transcrição;
+1. validar exportação SRT no Windows/Premiere;
+2. concluir Fase 3 com amostras reais;
+3. completar runtime CUDA para desempenho;
+4. avançar para fluxo desktop: drag-and-drop, progresso e cancelamento;
 5. presets;
 6. instalador Windows.
 
 ## Preview visual
-
-O preview é o próprio aplicativo Electron:
 
 ```powershell
 git pull
