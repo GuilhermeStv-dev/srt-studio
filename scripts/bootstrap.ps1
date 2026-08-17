@@ -11,26 +11,59 @@ if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
   throw "Node.js não encontrado. Instale Node 22+."
 }
 
-if (-not (Test-Path $venvPython)) {
-  $hasPython312 = $false
-  if (Get-Command py -ErrorAction SilentlyContinue) {
-    try {
-      & py -3.12 -c "import sys" 2>$null
-      $hasPython312 = ($LASTEXITCODE -eq 0)
-    } catch {
-      $hasPython312 = $false
+$python312Mode = $null
+
+if (Get-Command py -ErrorAction SilentlyContinue) {
+  try {
+    & py -3.12 -c "import sys; assert sys.version_info[:2] == (3, 12)" 2>$null
+    if ($LASTEXITCODE -eq 0) {
+      $python312Mode = "py"
     }
+  } catch {
+    $python312Mode = $null
+  }
+}
+
+if (-not $python312Mode -and (Get-Command python -ErrorAction SilentlyContinue)) {
+  try {
+    $systemPythonVersion = & python -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')"
+    if ($LASTEXITCODE -eq 0 -and $systemPythonVersion.Trim() -eq "3.12") {
+      $python312Mode = "python"
+    }
+  } catch {
+    $python312Mode = $null
+  }
+}
+
+if (-not $python312Mode) {
+  Write-Host "Python 3.12 não foi encontrado." -ForegroundColor Red
+  Write-Host "Instale com:" -ForegroundColor Yellow
+  Write-Host "  winget install -e --id Python.Python.3.12" -ForegroundColor White
+  throw "O ambiente de transcrição do SRT Studio exige Python 3.12 para manter dependências locais previsíveis."
+}
+
+if (Test-Path $venvPython) {
+  $venvVersion = & $venvPython -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')"
+  if ($LASTEXITCODE -ne 0) {
+    throw "Não foi possível verificar a versão do Python da .venv existente."
   }
 
-  if ($hasPython312) {
-    Write-Host "Criando .venv com Python 3.12..." -ForegroundColor Yellow
+  if ($venvVersion.Trim() -ne "3.12") {
+    Write-Host ".venv existente usa Python $venvVersion; recriando com Python 3.12..." -ForegroundColor Yellow
+    Remove-Item -Recurse -Force $venvPath
+  }
+}
+
+if (-not (Test-Path $venvPython)) {
+  Write-Host "Criando .venv com Python 3.12..." -ForegroundColor Yellow
+  if ($python312Mode -eq "py") {
     & py -3.12 -m venv $venvPath
-  } elseif (Get-Command python -ErrorAction SilentlyContinue) {
-    $availableVersion = & python -c "import sys; print('.'.join(map(str, sys.version_info[:3])))"
-    Write-Host "Python 3.12 não encontrado; criando .venv com Python $availableVersion..." -ForegroundColor Yellow
-    & python -m venv $venvPath
   } else {
-    throw "Python não encontrado. Instale Python 3.12+ e execute novamente."
+    & python -m venv $venvPath
+  }
+
+  if ($LASTEXITCODE -ne 0) {
+    throw "Falha ao criar .venv com Python 3.12."
   }
 }
 

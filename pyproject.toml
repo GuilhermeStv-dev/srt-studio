@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "srt-studio-engine"
 version = "0.1.0"
@@ -12,6 +16,15 @@ dev = [
 transcription = [
   "faster-whisper>=1.2,<2",
 ]
+
+# O repositório é um monorepo flat-layout. Sem descoberta explícita, setuptools
+# tenta tratar apps/shared/references/node_modules como pacotes Python.
+# A distribuição editável do engine deve conter somente engine e subpacotes.
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["engine*"]
+exclude = ["apps*", "shared*", "references*", "scripts*", "tests*", "node_modules*"]
+namespaces = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests/engine"]
