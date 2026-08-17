@@ -1,9 +1,9 @@
 import { app, BrowserWindow, dialog, ipcMain } from 'electron'
+import squirrelStartup from 'electron-squirrel-startup'
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import path from 'node:path'
 
-const squirrelStartup = process.platform === 'win32' && require('electron-squirrel-startup')
 if (squirrelStartup) app.quit()
 
 const PROGRESS_PREFIX = 'SRT_PROGRESS '
