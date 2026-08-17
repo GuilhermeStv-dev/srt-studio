@@ -19,7 +19,8 @@ Responsável somente por experiência desktop:
 - mostrar progresso/estado;
 - solicitar operações ao engine;
 - pré-visualizar palavras e captions;
-- escolher destino de exportação.
+- escolher destino de exportação;
+- pedir confirmação de sobrescrita antes de autorizar o engine a substituir um SRT.
 
 A UI **não** decide como o texto é segmentado nem valida SRT por conta própria.
 
@@ -38,20 +39,19 @@ Nenhuma regra de caption deve morar aqui.
 Responsável por limpeza textual conservadora:
 
 - espaços;
-- ponto final indesejado;
-- pontuação configurável;
 - grupos numéricos e monetários;
-- futuras regras ES-PY.
+- futuras regras ES-PY que ocorram antes da segmentação.
 
 ### `engine/segmentation`
 Responsável por transformar palavras temporizadas em cues:
 
-- preferência de ~12 caracteres;
-- limites flexíveis e hard limits separados;
-- conectores ligados à palavra semanticamente relacionada;
-- pausas da fala;
+- quantidade configurável de `1`, `2`, `3` ou `4` palavras por caption;
+- preposições opcionalmente ignoradas na contagem;
+- valores monetários reconhecidos com precedência e isolamento obrigatório;
+- opção de preservar/remover somente vírgulas e pontos nas bordas;
+- `¿`, `?`, `¡` e `!` sempre preservados;
+- separadores internos como `50.000` e `1,5` protegidos;
 - duração e integridade temporal;
-- balanceamento final;
 - comportamento determinístico e coberto por regressão.
 
 ### `engine/srt`
@@ -60,8 +60,9 @@ Responsável por:
 - validar cues;
 - formatar timestamps;
 - impedir overlap e regressão;
-- renderizar UTF-8;
-- exportar sem sobrescrever silenciosamente.
+- renderizar SubRip em UTF-8;
+- gravar `.srt` sem sobrescrever silenciosamente;
+- aceitar overwrite somente quando explicitamente autorizado pela camada desktop/CLI.
 
 ## Contratos principais
 
@@ -69,7 +70,7 @@ Responsável por:
 
 `CaptionCue` é a unidade de caption resultante da segmentação e validada antes de renderizar SRT.
 
-Pipeline pretendido:
+Pipeline atual:
 
 ```text
 media
@@ -78,7 +79,7 @@ media
   -> normalization/segmentation
   -> CaptionCue[]
   -> srt validation/render
-  -> .srt
+  -> UTF-8 .srt
 ```
 
 A UI consome DTOs serializáveis e nunca objetos internos do Whisper.
@@ -87,24 +88,25 @@ A UI consome DTOs serializáveis e nunca objetos internos do Whisper.
 
 Durante o desenvolvimento, Electron executa o Python como subprocesso e recebe JSON do CLI do engine.
 
-O desktop já expõe operações para:
+O desktop expõe operações para:
 
 - `health`;
 - inspeção de `runtime`;
 - seleção local de mídia;
-- `transcribe`, retornando palavras e captions.
+- `transcribe`, retornando palavras e captions;
+- `export-srt`, enviando `CaptionCue[]` serializável via stdin e recebendo o resultado da gravação.
 
 Quando existe `.venv\Scripts\python.exe` no repositório, o Electron deve preferir esse Python ao Python global.
 
 ### Regras para evolução do protocolo
 
-Antes de tornar o fluxo mais complexo:
-
-- manter stdout reservado para payload JSON quando necessário;
-- enviar logs/erros por canal separado ou stderr;
-- tratar cancelamento e progresso explicitamente;
+- manter stdout reservado para payload JSON;
+- usar stderr para erros serializáveis;
+- forçar UTF-8 no subprocesso;
 - não acoplar componentes React ao formato interno do Whisper;
-- manter erros serializáveis/tipados;
+- validação SRT pertence ao engine, não à UI;
+- a UI pode confirmar overwrite, mas o engine deve continuar recusando overwrite por padrão;
+- tratar cancelamento e progresso explicitamente quando essas funções forem implementadas;
 - definir versionamento se o contrato começar a persistir entre releases;
 - decidir empacotamento do Python/modelo somente na fase de distribuição Windows.
 
