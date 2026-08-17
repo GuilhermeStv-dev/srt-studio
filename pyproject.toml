@@ -1,0 +1,18 @@
+[project]
+name = "srt-studio-engine"
+version = "0.1.0"
+description = "Engine local do SRT Studio"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8,<9",
+]
+transcription = [
+  "faster-whisper>=1.2,<2",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests/engine"]
+pythonpath = ["."]
