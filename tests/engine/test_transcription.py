@@ -5,6 +5,7 @@ from engine.transcription import (
     TranscriptionError,
     TranscriptionUnavailableError,
     collect_word_tokens,
+    find_missing_windows_cuda_libraries,
     select_runtime,
 )
 
@@ -36,6 +37,25 @@ class RuntimeSelectionTests(unittest.TestCase):
                 cpu_compute_types={"int8"},
                 requested_device="cuda",
             )
+
+    def test_cuda_dll_check_is_windows_only(self) -> None:
+        missing = find_missing_windows_cuda_libraries(
+            platform_name="linux",
+            loader=lambda _: (_ for _ in ()).throw(OSError("não deveria carregar")),
+        )
+        self.assertEqual(missing, ())
+
+    def test_reports_missing_windows_cuda_dlls(self) -> None:
+        def fake_loader(name: str) -> object:
+            if name == "cublas64_12.dll":
+                raise OSError("missing")
+            return object()
+
+        missing = find_missing_windows_cuda_libraries(
+            platform_name="win32",
+            loader=fake_loader,
+        )
+        self.assertEqual(missing, ("cublas64_12.dll",))
 
 
 class WordTokenCollectionTests(unittest.TestCase):
