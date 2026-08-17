@@ -82,32 +82,45 @@ class SegmentationTests(unittest.TestCase):
         )
         self.assertEqual([cue.text for cue in result], ["para", "vos"])
 
-    def test_preserves_punctuation_when_enabled(self) -> None:
+    def test_preserves_commas_and_periods_when_enabled(self) -> None:
         result = segment_words(
             words(
-                ("¿Hola,", 0.00, 0.30),
-                ("qué?", 0.31, 0.55),
+                ("Hola,", 0.00, 0.30),
+                ("mundo.", 0.31, 0.55),
             ),
-            SegmentationConfig(target_words=2, preserve_punctuation=True),
+            SegmentationConfig(target_words=2, preserve_commas_periods=True),
         )
-        self.assertEqual(result[0].text, "¿Hola, qué?")
+        self.assertEqual(result[0].text, "Hola, mundo.")
 
-    def test_removes_edge_punctuation_when_disabled(self) -> None:
+    def test_removes_only_edge_commas_and_periods_when_disabled(self) -> None:
         result = segment_words(
             words(
-                ("¿Hola,", 0.00, 0.30),
-                ("qué?", 0.31, 0.55),
+                ("Hola,", 0.00, 0.30),
+                ("mundo.", 0.31, 0.55),
             ),
-            SegmentationConfig(target_words=2, preserve_punctuation=False),
+            SegmentationConfig(target_words=2, preserve_commas_periods=False),
         )
-        self.assertEqual(result[0].text, "Hola qué")
+        self.assertEqual(result[0].text, "Hola mundo")
 
-    def test_punctuation_option_does_not_damage_numeric_separators(self) -> None:
+    def test_question_and_exclamation_marks_are_always_preserved(self) -> None:
         result = segment_words(
-            words(("50.000", 0.00, 0.30)),
-            SegmentationConfig(target_words=1, preserve_punctuation=False),
+            words(
+                ("¿Quién?", 0.00, 0.30),
+                ("¡Ahora!", 0.31, 0.55),
+            ),
+            SegmentationConfig(target_words=2, preserve_commas_periods=False),
         )
-        self.assertEqual(result[0].text, "50.000")
+        self.assertEqual(result[0].text, "¿Quién? ¡Ahora!")
+
+    def test_comma_period_option_does_not_damage_numeric_separators(self) -> None:
+        result = segment_words(
+            words(
+                ("50.000", 0.00, 0.30),
+                ("1,5.", 0.31, 0.55),
+            ),
+            SegmentationConfig(target_words=2, preserve_commas_periods=False),
+        )
+        self.assertEqual(result[0].text, "50.000 1,5")
 
     def test_monetary_value_is_always_isolated_even_after_preposition(self) -> None:
         normalized = normalize_monetary_tokens(
