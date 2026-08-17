@@ -1,0 +1,20 @@
+{
+  "name": "Monetary value stays isolated",
+  "description": "Valor monetário normalizado deve permanecer sozinho mesmo com alvo 1 e preposições ignoradas.",
+  "source": "product-rule",
+  "normalization": {
+    "monetary_thousands": true
+  },
+  "config": {
+    "target_words": 1,
+    "ignore_prepositions": true,
+    "preserve_commas_periods": true
+  },
+  "tokens": [
+    {"text": "con", "start": 0.00, "end": 0.15},
+    {"text": "50.000", "start": 0.16, "end": 0.45},
+    {"text": "guaraníes", "start": 0.46, "end": 0.75},
+    {"text": "ahora", "start": 0.76, "end": 1.00}
+  ],
+  "expected_captions": ["con", "50 mil", "ahora"]
+}
