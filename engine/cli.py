@@ -4,6 +4,8 @@ import argparse
 import json
 import sys
 
+from engine.segmentation import SegmentationConfig, segment_words
+
 from engine import __version__
 from engine.transcription import (
     TranscriptionError,
@@ -18,7 +20,15 @@ def emit(payload: object) -> None:
 
 
 def health() -> int:
-    emit({"ok": True, "engine": "srt-studio", "version": __version__})
+    emit(
+        {
+            "ok": True,
+            "engine": "srt-studio",
+            "version": __version__,
+            "python_version": ".".join(map(str, sys.version_info[:3])),
+            "python_executable": sys.executable,
+        }
+    )
     return 0
 
 
@@ -46,7 +56,20 @@ def transcribe(args: argparse.Namespace) -> int:
         print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False), file=sys.stderr)
         return 4
 
-    emit({"ok": True, **result.to_dict()})
+    cues = segment_words(
+        result.words,
+        SegmentationConfig(
+            target_chars=args.target_chars,
+            hard_max_chars=args.hard_max_chars,
+        ),
+    )
+    emit(
+        {
+            "ok": True,
+            **result.to_dict(),
+            "captions": [cue.to_dict() for cue in cues],
+        }
+    )
     return 0
 
 
@@ -69,6 +92,8 @@ def build_parser() -> argparse.ArgumentParser:
     transcribe_parser.add_argument("--language", default=None)
     transcribe_parser.add_argument("--device", choices=["auto", "cuda", "cpu"], default="auto")
     transcribe_parser.add_argument("--no-vad", action="store_true")
+    transcribe_parser.add_argument("--target-chars", type=int, default=12)
+    transcribe_parser.add_argument("--hard-max-chars", type=int, default=24)
 
     return parser
 
