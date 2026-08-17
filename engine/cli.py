@@ -58,7 +58,7 @@ def transcribe(args: argparse.Namespace) -> int:
 
     segmentation_words = normalize_monetary_tokens(
         result.words,
-        enabled=args.monetary_thousands,
+        format_thousands=args.monetary_thousands,
     )
     cues = segment_words(
         segmentation_words,
@@ -123,7 +123,7 @@ def build_parser() -> argparse.ArgumentParser:
     transcribe_parser.add_argument(
         "--monetary-thousands",
         action="store_true",
-        help="Normaliza valores monetários redondos para o formato N mil",
+        help="Exibe valores monetários redondos no formato N mil",
     )
 
     return parser
