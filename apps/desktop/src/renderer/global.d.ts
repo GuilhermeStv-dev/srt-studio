@@ -24,7 +24,7 @@ type SegmentationSettings = {
   monetary_thousands: boolean
 }
 
-type TranscriptionResult = {
+type SuccessfulTranscriptionResult = {
   ok: true
   language: string
   language_probability: number | null
@@ -36,6 +36,15 @@ type TranscriptionResult = {
   words: TranscriptionWord[]
   captions: CaptionPreview[]
   segmentation: SegmentationSettings
+}
+
+type TranscriptionResult =
+  | SuccessfulTranscriptionResult
+  | { ok: false; cancelled: true }
+
+type TranscriptionProgress = {
+  stage: string
+  progress: number | null
 }
 
 type SrtExportResult =
@@ -64,6 +73,12 @@ declare global {
         preserveCommasPeriods: boolean
         formatMonetaryThousands: boolean
       }): Promise<TranscriptionResult>
+      cancelTranscription(): Promise<{
+        ok: true
+        hadActiveTranscription: boolean
+        signalSent?: boolean
+      }>
+      onTranscriptionProgress(callback: (payload: TranscriptionProgress) => void): () => void
       exportSrt(input: {
         sourceFilePath: string
         captions: CaptionPreview[]

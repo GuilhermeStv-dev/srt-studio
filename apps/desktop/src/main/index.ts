@@ -1,7 +1,16 @@
 import { app, BrowserWindow, dialog, ipcMain } from 'electron'
-import { spawn } from 'node:child_process'
+import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import path from 'node:path'
+
+const PROGRESS_PREFIX = 'SRT_PROGRESS '
+
+type ActiveTranscription = {
+  child: ChildProcessWithoutNullStreams
+  cancelled: boolean
+}
+
+let activeTranscription: ActiveTranscription | null = null
 
 function repoRoot(): string {
   return app.isPackaged
@@ -20,6 +29,18 @@ function pythonExecutable(): string {
   return existsSync(localPython) ? localPython : 'python'
 }
 
+function engineSpawn(args: string[]): ChildProcessWithoutNullStreams {
+  return spawn(pythonExecutable(), ['-X', 'utf8', '-m', 'engine.cli', ...args], {
+    cwd: repoRoot(),
+    windowsHide: true,
+    env: {
+      ...process.env,
+      PYTHONUTF8: '1',
+      PYTHONIOENCODING: 'utf-8'
+    }
+  })
+}
+
 function parseJson(value: string, fallbackMessage: string): unknown {
   try {
     return JSON.parse(value.trim())
@@ -28,22 +49,28 @@ function parseJson(value: string, fallbackMessage: string): unknown {
   }
 }
 
+function engineError(stderr: string, code: number | null): Error {
+  const value = stderr.trim()
+  if (value) {
+    const lines = value.split(/\r?\n/).filter(Boolean)
+    const lastLine = lines.at(-1) ?? value
+    try {
+      const payload = JSON.parse(lastLine) as { error?: string }
+      return new Error(payload.error || value)
+    } catch {
+      return new Error(value)
+    }
+  }
+  return new Error(`Engine encerrou com código ${code}`)
+}
+
 function runEngineJson(
   args: string[],
   acceptNonZero = false,
   stdinPayload?: unknown
 ): Promise<unknown> {
   return new Promise((resolve, reject) => {
-    const child = spawn(pythonExecutable(), ['-X', 'utf8', '-m', 'engine.cli', ...args], {
-      cwd: repoRoot(),
-      windowsHide: true,
-      env: {
-        ...process.env,
-        PYTHONUTF8: '1',
-        PYTHONIOENCODING: 'utf-8'
-      }
-    })
-
+    const child = engineSpawn(args)
     let stdout = ''
     let stderr = ''
 
@@ -54,16 +81,7 @@ function runEngineJson(
     child.on('error', reject)
     child.on('close', (code) => {
       if (code !== 0 && !acceptNonZero) {
-        if (stderr.trim()) {
-          try {
-            const payload = JSON.parse(stderr.trim()) as { error?: string }
-            reject(new Error(payload.error || stderr.trim()))
-          } catch {
-            reject(new Error(stderr.trim()))
-          }
-          return
-        }
-        reject(new Error(`Engine encerrou com código ${code}`))
+        reject(engineError(stderr, code))
         return
       }
 
@@ -83,6 +101,96 @@ function runEngineJson(
       child.stdin.setDefaultEncoding('utf8')
       child.stdin.end(JSON.stringify(stdinPayload))
     }
+  })
+}
+
+function runTranscriptionJson(
+  args: string[],
+  onProgress: (payload: { stage: string; progress: number | null }) => void
+): Promise<unknown> {
+  if (activeTranscription) {
+    return Promise.reject(new Error('Já existe uma transcrição em andamento'))
+  }
+
+  return new Promise((resolve, reject) => {
+    const child = engineSpawn([...args, '--progress-events'])
+    const job: ActiveTranscription = { child, cancelled: false }
+    activeTranscription = job
+
+    let stdout = ''
+    let stderr = ''
+    let stderrBuffer = ''
+    let settled = false
+
+    const finish = (callback: () => void) => {
+      if (settled) return
+      settled = true
+      if (activeTranscription === job) activeTranscription = null
+      callback()
+    }
+
+    const handleStderrLine = (line: string) => {
+      if (!line) return
+      if (line.startsWith(PROGRESS_PREFIX)) {
+        const raw = line.slice(PROGRESS_PREFIX.length)
+        try {
+          const payload = JSON.parse(raw) as { stage?: unknown; progress?: unknown }
+          if (typeof payload.stage === 'string') {
+            const progress = typeof payload.progress === 'number' && Number.isFinite(payload.progress)
+              ? Math.min(1, Math.max(0, payload.progress))
+              : null
+            onProgress({ stage: payload.stage, progress })
+          }
+        } catch {
+          stderr += `${line}\n`
+        }
+        return
+      }
+      stderr += `${line}\n`
+    }
+
+    child.stdout.setEncoding('utf8')
+    child.stderr.setEncoding('utf8')
+    child.stdout.on('data', (chunk: string) => { stdout += chunk })
+    child.stderr.on('data', (chunk: string) => {
+      stderrBuffer += chunk
+      const lines = stderrBuffer.split(/\r?\n/)
+      stderrBuffer = lines.pop() ?? ''
+      for (const line of lines) handleStderrLine(line)
+    })
+
+    child.on('error', (error) => {
+      finish(() => reject(error))
+    })
+
+    child.on('close', (code) => {
+      if (stderrBuffer) {
+        handleStderrLine(stderrBuffer)
+        stderrBuffer = ''
+      }
+
+      if (job.cancelled) {
+        finish(() => resolve({ ok: false, cancelled: true }))
+        return
+      }
+
+      if (code !== 0) {
+        finish(() => reject(engineError(stderr, code)))
+        return
+      }
+
+      if (!stdout.trim()) {
+        finish(() => reject(new Error(stderr.trim() || 'Engine não retornou resposta')))
+        return
+      }
+
+      try {
+        const payload = parseJson(stdout, 'Engine retornou JSON inválido')
+        finish(() => resolve(payload))
+      } catch (error) {
+        finish(() => reject(error))
+      }
+    })
   })
 }
 
@@ -132,7 +240,7 @@ app.whenReady().then(() => {
 
   ipcMain.handle(
     'engine:transcribe',
-    async (_event, input: {
+    async (event, input: {
       filePath: string
       model: string
       language: string | null
@@ -153,9 +261,27 @@ app.whenReady().then(() => {
       if (!input.ignorePrepositions) args.push('--count-prepositions')
       if (!input.preserveCommasPeriods) args.push('--remove-commas-periods')
       if (input.formatMonetaryThousands) args.push('--monetary-thousands')
-      return runEngineJson(args)
+
+      return runTranscriptionJson(args, (payload) => {
+        if (!event.sender.isDestroyed()) {
+          event.sender.send('engine:transcription-progress', payload)
+        }
+      })
     }
   )
+
+  ipcMain.handle('engine:cancel-transcription', async () => {
+    const job = activeTranscription
+    if (!job) return { ok: true, hadActiveTranscription: false }
+
+    job.cancelled = true
+    const signaled = job.child.kill()
+    return {
+      ok: true,
+      hadActiveTranscription: true,
+      signalSent: signaled || job.child.killed
+    }
+  })
 
   ipcMain.handle(
     'srt:export',
@@ -212,6 +338,13 @@ app.whenReady().then(() => {
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
+})
+
+app.on('before-quit', () => {
+  if (activeTranscription) {
+    activeTranscription.cancelled = true
+    activeTranscription.child.kill()
+  }
 })
 
 app.on('window-all-closed', () => {

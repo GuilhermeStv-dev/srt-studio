@@ -62,10 +62,11 @@ class WordTokenCollectionTests(unittest.TestCase):
     def test_collects_and_trims_words(self) -> None:
         segments = [
             SimpleNamespace(
+                end=0.90,
                 words=[
                     SimpleNamespace(word=" Hola", start=0.10, end=0.42, probability=0.93),
                     SimpleNamespace(word=" mundo", start=0.44, end=0.90, probability=0.88),
-                ]
+                ],
             )
         ]
 
@@ -73,6 +74,44 @@ class WordTokenCollectionTests(unittest.TestCase):
         self.assertEqual([word.text for word in words], ["Hola", "mundo"])
         self.assertEqual(words[0].start, 0.1)
         self.assertEqual(words[1].end, 0.9)
+
+    def test_reports_progress_from_segment_end_and_duration(self) -> None:
+        segments = [
+            SimpleNamespace(
+                end=0.50,
+                words=[SimpleNamespace(word="uno", start=0.10, end=0.40, probability=0.9)],
+            ),
+            SimpleNamespace(
+                end=1.50,
+                words=[SimpleNamespace(word="dos", start=1.10, end=1.40, probability=0.9)],
+            ),
+        ]
+        events: list[tuple[str, float | None]] = []
+
+        collect_word_tokens(
+            segments,
+            duration=2.0,
+            progress_callback=lambda stage, progress: events.append((stage, progress)),
+        )
+
+        self.assertEqual(events, [("transcribing", 0.25), ("transcribing", 0.75)])
+
+    def test_progress_is_capped_below_completion_until_pipeline_finishes(self) -> None:
+        segments = [
+            SimpleNamespace(
+                end=2.20,
+                words=[SimpleNamespace(word="fin", start=1.80, end=2.10, probability=0.9)],
+            )
+        ]
+        events: list[tuple[str, float | None]] = []
+
+        collect_word_tokens(
+            segments,
+            duration=2.0,
+            progress_callback=lambda stage, progress: events.append((stage, progress)),
+        )
+
+        self.assertEqual(events[-1], ("transcribing", 0.99))
 
     def test_discards_empty_word_tokens(self) -> None:
         segments = [

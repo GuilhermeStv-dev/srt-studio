@@ -14,7 +14,13 @@ type Caption = { text: string; start: number; end: number }
 
 type TranscriptionState =
   | { status: 'idle'; message: string }
-  | { status: 'loading'; message: string }
+  | {
+      status: 'loading'
+      message: string
+      stage: string
+      progress: number | null
+      cancelling: boolean
+    }
   | { status: 'success'; message: string; words: Caption[]; captions: Caption[] }
   | { status: 'error'; message: string }
 
@@ -37,6 +43,19 @@ function fileName(filePath: string | null): string {
 function hasSupportedMediaExtension(name: string): boolean {
   const extension = name.split('.').pop()?.toLowerCase()
   return Boolean(extension && MEDIA_EXTENSIONS.has(extension))
+}
+
+function progressMessage(stage: string, progress: number | null): string {
+  if (stage === 'preparing') return 'Preparando runtime de transcrição…'
+  if (stage === 'loading_model') return 'Carregando modelo Whisper…'
+  if (stage === 'transcribing') {
+    return progress === null
+      ? 'Transcrevendo áudio…'
+      : `Transcrevendo áudio… ${Math.round(progress * 100)}%`
+  }
+  if (stage === 'finalizing') return 'Segmentando e validando captions…'
+  if (stage === 'completed') return 'Finalizando resultado…'
+  return 'Transcrevendo…'
 }
 
 function App() {
@@ -68,6 +87,7 @@ function App() {
   })
 
   const selectedName = useMemo(() => fileName(filePath), [filePath])
+  const isTranscribing = transcription.status === 'loading'
 
   function applySourceFile(nextFilePath: string) {
     setFilePath(nextFilePath)
@@ -120,6 +140,7 @@ function App() {
   }
 
   async function selectMedia() {
+    if (isTranscribing) return
     const result = await window.srtStudio.selectMedia()
     if (!result.canceled && result.filePath) {
       applySourceFile(result.filePath)
@@ -128,14 +149,14 @@ function App() {
 
   function handleDragEnter(event: React.DragEvent<HTMLElement>) {
     event.preventDefault()
-    if (!event.dataTransfer.types.includes('Files')) return
+    if (isTranscribing || !event.dataTransfer.types.includes('Files')) return
     dragDepth.current += 1
     setIsDragging(true)
   }
 
   function handleDragOver(event: React.DragEvent<HTMLElement>) {
     event.preventDefault()
-    if (!event.dataTransfer.types.includes('Files')) return
+    if (isTranscribing || !event.dataTransfer.types.includes('Files')) return
     event.dataTransfer.dropEffect = 'copy'
     setIsDragging(true)
   }
@@ -150,6 +171,11 @@ function App() {
     event.preventDefault()
     dragDepth.current = 0
     setIsDragging(false)
+
+    if (isTranscribing) {
+      setSourceMessage('Cancele a transcrição atual antes de trocar o arquivo.')
+      return
+    }
 
     const droppedFile = event.dataTransfer.files[0]
     if (!droppedFile) return
@@ -175,7 +201,14 @@ function App() {
   async function runTranscription() {
     if (!filePath) return
     setExportState({ status: 'idle', message: 'Aguardando a nova transcrição.' })
-    setTranscription({ status: 'loading', message: 'Carregando modelo e transcrevendo…' })
+    setTranscription({
+      status: 'loading',
+      message: 'Preparando runtime de transcrição…',
+      stage: 'preparing',
+      progress: null,
+      cancelling: false
+    })
+
     try {
       const result = await window.srtStudio.transcribe({
         filePath,
@@ -186,6 +219,19 @@ function App() {
         preserveCommasPeriods,
         formatMonetaryThousands
       })
+
+      if (!result.ok) {
+        setTranscription({
+          status: 'idle',
+          message: 'Transcrição cancelada. Nenhuma caption nova foi aplicada.'
+        })
+        setExportState({
+          status: 'idle',
+          message: 'A transcrição foi cancelada; nenhum SRT novo foi gerado.'
+        })
+        return
+      }
+
       const fallbackLabel = result.runtime_warning ? ' · fallback CUDA → CPU' : ''
       setTranscription({
         status: 'success',
@@ -201,6 +247,32 @@ function App() {
       setTranscription({
         status: 'error',
         message: error instanceof Error ? error.message : 'Falha ao transcrever'
+      })
+    }
+  }
+
+  async function cancelTranscription() {
+    setTranscription((current) => {
+      if (current.status !== 'loading') return current
+      return {
+        ...current,
+        cancelling: true,
+        message: 'Cancelando transcrição…'
+      }
+    })
+
+    try {
+      const result = await window.srtStudio.cancelTranscription()
+      if (!result.hadActiveTranscription) {
+        setTranscription({
+          status: 'idle',
+          message: 'Nenhuma transcrição estava ativa.'
+        })
+      }
+    } catch (error) {
+      setTranscription({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Falha ao cancelar a transcrição'
       })
     }
   }
@@ -235,12 +307,25 @@ function App() {
     void checkEngine()
     void checkRuntime()
 
+    const unsubscribeProgress = window.srtStudio.onTranscriptionProgress(({ stage, progress }) => {
+      setTranscription((current) => {
+        if (current.status !== 'loading' || current.cancelling) return current
+        return {
+          ...current,
+          stage,
+          progress,
+          message: progressMessage(stage, progress)
+        }
+      })
+    })
+
     const preventNativeFileOpen = (event: DragEvent) => {
       if (event.dataTransfer?.types.includes('Files')) event.preventDefault()
     }
     window.addEventListener('dragover', preventNativeFileOpen)
     window.addEventListener('drop', preventNativeFileOpen)
     return () => {
+      unsubscribeProgress()
       window.removeEventListener('dragover', preventNativeFileOpen)
       window.removeEventListener('drop', preventNativeFileOpen)
     }
@@ -250,12 +335,12 @@ function App() {
     <main className="shell">
       <section className="hero">
         <div className="hero-topline">
-          <span className="eyebrow">TRANSCRIÇÃO · 0.5 DEV</span>
+          <span className="eyebrow">TRANSCRIÇÃO · 0.6 DEV</span>
           <span className={`status-dot ${runtime.status}`}>{runtime.message}</span>
         </div>
         <h1>SRT Studio</h1>
         <p>
-          Transcrição local e captions previsíveis para um SRT rápido de editar no Premiere.
+          Transcrição local e captions inteligentes para um SRT rápido de editar no Premiere.
         </p>
       </section>
 
@@ -280,7 +365,7 @@ function App() {
             <small className="source-hint">Arraste um arquivo para este cartão ou use o seletor.</small>
             {sourceMessage && <small className="source-error">{sourceMessage}</small>}
           </div>
-          <button className="secondary" onClick={selectMedia}>Selecionar arquivo</button>
+          <button className="secondary" onClick={selectMedia} disabled={isTranscribing}>Selecionar arquivo</button>
         </article>
 
         <article className="card controls">
@@ -288,7 +373,7 @@ function App() {
           <div className="field-row three">
             <label>
               Modelo Whisper
-              <select value={model} onChange={(event) => setModel(event.target.value)}>
+              <select value={model} onChange={(event) => setModel(event.target.value)} disabled={isTranscribing}>
                 <option value="large-v3">Large v3 · precisão</option>
                 <option value="medium">Medium · equilíbrio</option>
                 <option value="small">Small · mais rápido</option>
@@ -296,7 +381,7 @@ function App() {
             </label>
             <label>
               Idioma
-              <select value={language} onChange={(event) => setLanguage(event.target.value)}>
+              <select value={language} onChange={(event) => setLanguage(event.target.value)} disabled={isTranscribing}>
                 <option value="es">Español / ES-PY</option>
                 <option value="pt">Português</option>
                 <option value="en">English</option>
@@ -304,9 +389,9 @@ function App() {
               </select>
             </label>
             <label>
-              Palavras por caption
-              <select value={targetWords} onChange={(event) => setTargetWords(Number(event.target.value))}>
-                <option value={1}>1 palavra</option>
+              Densidade preferida
+              <select value={targetWords} onChange={(event) => setTargetWords(Number(event.target.value))} disabled={isTranscribing}>
+                <option value={1}>1 palavra · muito dinâmica</option>
                 <option value={2}>2 palavras · padrão</option>
                 <option value={3}>3 palavras</option>
                 <option value={4}>4 palavras</option>
@@ -320,10 +405,11 @@ function App() {
                 type="checkbox"
                 checked={ignorePrepositions}
                 onChange={(event) => setIgnorePrepositions(event.target.checked)}
+                disabled={isTranscribing}
               />
               <span>
                 <strong>Ignorar preposições na contagem</strong>
-                <small>Ex.: com 1 palavra, “para vos” pode permanecer junto.</small>
+                <small>A densidade é uma preferência; cadência e coesão ainda podem ajustar o corte.</small>
               </span>
             </label>
 
@@ -332,6 +418,7 @@ function App() {
                 type="checkbox"
                 checked={preserveCommasPeriods}
                 onChange={(event) => setPreserveCommasPeriods(event.target.checked)}
+                disabled={isTranscribing}
               />
               <span>
                 <strong>Manter vírgulas e pontos</strong>
@@ -344,6 +431,7 @@ function App() {
                 type="checkbox"
                 checked={formatMonetaryThousands}
                 onChange={(event) => setFormatMonetaryThousands(event.target.checked)}
+                disabled={isTranscribing}
               />
               <span>
                 <strong>Valores monetários no formato “mil”</strong>
@@ -354,7 +442,7 @@ function App() {
 
           <div className="engine-line">
             <span>{health.message}</span>
-            <button className="ghost" onClick={checkRuntime}>Reverificar runtime</button>
+            <button className="ghost" onClick={checkRuntime} disabled={isTranscribing}>Reverificar runtime</button>
           </div>
         </article>
 
@@ -368,10 +456,19 @@ function App() {
               <button
                 className={transcription.status === 'success' ? 'secondary' : undefined}
                 onClick={runTranscription}
-                disabled={!filePath || transcription.status === 'loading' || runtime.status !== 'ready'}
+                disabled={!filePath || isTranscribing || runtime.status !== 'ready'}
               >
-                {transcription.status === 'loading' ? 'Transcrevendo…' : transcription.status === 'success' ? 'Transcrever novamente' : 'Transcrever agora'}
+                {isTranscribing ? 'Transcrevendo…' : transcription.status === 'success' ? 'Transcrever novamente' : 'Transcrever agora'}
               </button>
+              {transcription.status === 'loading' && (
+                <button
+                  className="secondary cancel-button"
+                  onClick={cancelTranscription}
+                  disabled={transcription.cancelling}
+                >
+                  {transcription.cancelling ? 'Cancelando…' : 'Cancelar'}
+                </button>
+              )}
               {transcription.status === 'success' && (
                 <button
                   onClick={exportSrt}
@@ -382,6 +479,30 @@ function App() {
               )}
             </div>
           </div>
+
+          {transcription.status === 'loading' && (
+            <div className="transcription-progress" aria-live="polite">
+              <div className="progress-meta">
+                <strong>{transcription.message}</strong>
+                {transcription.progress !== null && (
+                  <span>{Math.round(transcription.progress * 100)}%</span>
+                )}
+              </div>
+              <div className={`progress-track ${transcription.progress === null ? 'indeterminate' : ''}`}>
+                <div
+                  className="progress-fill"
+                  style={transcription.progress === null
+                    ? undefined
+                    : { width: `${Math.round(transcription.progress * 100)}%` }}
+                />
+              </div>
+              <small>
+                {transcription.progress === null
+                  ? 'O carregamento do modelo não possui percentual artificial; o progresso numérico começa com a inferência.'
+                  : 'Percentual calculado pela posição temporal já processada no áudio.'}
+              </small>
+            </div>
+          )}
 
           {transcription.status === 'success' && (
             <>
