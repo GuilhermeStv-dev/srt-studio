@@ -30,16 +30,23 @@ function parseJson(value: string, fallbackMessage: string): unknown {
 
 function runEngineJson(args: string[], acceptNonZero = false): Promise<unknown> {
   return new Promise((resolve, reject) => {
-    const child = spawn(pythonExecutable(), ['-m', 'engine.cli', ...args], {
+    const child = spawn(pythonExecutable(), ['-X', 'utf8', '-m', 'engine.cli', ...args], {
       cwd: repoRoot(),
-      windowsHide: true
+      windowsHide: true,
+      env: {
+        ...process.env,
+        PYTHONUTF8: '1',
+        PYTHONIOENCODING: 'utf-8'
+      }
     })
 
     let stdout = ''
     let stderr = ''
 
-    child.stdout.on('data', (chunk) => { stdout += String(chunk) })
-    child.stderr.on('data', (chunk) => { stderr += String(chunk) })
+    child.stdout.setEncoding('utf8')
+    child.stderr.setEncoding('utf8')
+    child.stdout.on('data', (chunk: string) => { stdout += chunk })
+    child.stderr.on('data', (chunk: string) => { stderr += chunk })
     child.on('error', reject)
     child.on('close', (code) => {
       if (code !== 0 && !acceptNonZero) {
