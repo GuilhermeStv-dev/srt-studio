@@ -9,6 +9,7 @@ class WordToken:
     start: float
     end: float
     probability: float | None = None
+    kind: str | None = None
 
     def to_dict(self) -> dict:
         return asdict(self)
