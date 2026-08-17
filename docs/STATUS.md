@@ -43,6 +43,7 @@
 - [x] preferência por pausas fortes e `?` / `!`
 - [x] evita artigo/preposição/conjunção curta isolada
 - [x] evita conector pendurado no fim de cue quando há alternativa
+- [x] prefere captions com 2+ palavras quando cabem de forma razoável
 - [x] remove ponto final sem remover `?` / `!`
 - [x] programação dinâmica para reduzir último cue ruim
 - [x] cues com duração positiva e sem overlap
@@ -50,7 +51,7 @@
 
 ## Validação atual
 
-**23 testes unitários passando** sem exigir download do modelo.
+**24 testes unitários passando** sem exigir download do modelo.
 
 ## Ainda precisa de validação em máquina real
 
