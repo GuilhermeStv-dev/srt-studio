@@ -6,7 +6,8 @@
 
 **2. Motor de transcrição — concluído funcionalmente**  
 **3. Segmentação ES-PY — contagem por palavras em validação real**  
-**4. SRT Premiere-safe — implementado em código, aguardando validação no Premiere**
+**4. SRT Premiere-safe — implementado em código, aguardando validação no Premiere**  
+**5. Desktop funcional — em andamento**
 
 ## Fundação concluída
 
@@ -68,11 +69,27 @@
 - [x] `Save As` sugerindo o nome da mídia com `.srt`
 - [x] sobrescrita bloqueada por padrão
 - [x] substituição exige confirmação explícita
-- [x] preview pode mostrar só as primeiras captions, mas a exportação usa todas
+- [x] exportação usa todas as captions
+
+## Desktop funcional — implementação atual
+
+- [x] seleção de mídia pelo diálogo nativo
+- [x] drag-and-drop de áudio/vídeo no cartão de origem
+- [x] caminho de arquivo arrastado obtido no preload via `webUtils.getPathForFile`
+- [x] prevenção de abertura/navegação acidental ao soltar arquivo na janela
+- [x] feedback visual durante drag-and-drop
+- [x] preview rolável com todas as captions da transcrição
+- [x] amostra técnica de WordTokens/timestamps mantida separadamente
+- [ ] progresso real da transcrição
+- [ ] cancelamento da transcrição
+- [ ] estados de retry mais completos
+- [ ] presets de configuração
 
 ## Validação automatizada
 
-A branch atual adiciona regressões para:
+A suíte atual cobre engine de transcrição/segmentação/SRT e a CI valida também typecheck e build do desktop.
+
+Regressões relevantes já cobertas:
 
 - `?` / `!` preservados mesmo com vírgulas/pontos desligados;
 - separadores numéricos protegidos;
@@ -91,14 +108,16 @@ A branch atual adiciona regressões para:
 - [ ] exportar `.srt` pela interface
 - [ ] importar o SRT no Adobe Premiere
 - [ ] confirmar acentos, timestamps e sincronia no Premiere
+- [ ] validar drag-and-drop no Windows com WAV/MOV/MP4
+- [ ] confirmar que o preview permite percorrer todas as captions
 - [ ] concluir CUDA/cuDNN para testar inferência GPU sem fallback
 
 ## Próximas entregas
 
-1. validar exportação SRT no Windows/Premiere;
+1. validar exportação SRT e drag-and-drop no Windows/Premiere;
 2. concluir Fase 3 com amostras reais;
-3. completar runtime CUDA para desempenho;
-4. avançar para fluxo desktop: drag-and-drop, progresso e cancelamento;
+3. implementar progresso/cancelamento de transcrição em PR separado;
+4. completar runtime CUDA para desempenho;
 5. presets;
 6. instalador Windows.
 
