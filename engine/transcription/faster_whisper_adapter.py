@@ -18,6 +18,8 @@ class TranscriptionUnavailableError(TranscriptionError):
     """Dependências opcionais de transcrição não estão disponíveis."""
 
 
+ProgressCallback = Callable[[str, float | None], None]
+
 _WINDOWS_CUDA_DLLS = ("cublas64_12.dll", "cudnn_ops64_9.dll")
 
 
@@ -54,6 +56,15 @@ class TranscriptionResult:
             "words": [word.to_dict() for word in self.words],
             "runtime_warning": self.runtime_warning,
         }
+
+
+def _report_progress(
+    callback: ProgressCallback | None,
+    stage: str,
+    progress: float | None = None,
+) -> None:
+    if callback is not None:
+        callback(stage, progress)
 
 
 def find_missing_windows_cuda_libraries(
@@ -177,9 +188,15 @@ def detect_runtime(requested_device: str = "auto") -> RuntimeSelection:
     )
 
 
-def collect_word_tokens(segments: Iterable[Any]) -> tuple[WordToken, ...]:
+def collect_word_tokens(
+    segments: Iterable[Any],
+    *,
+    duration: float | None = None,
+    progress_callback: ProgressCallback | None = None,
+) -> tuple[WordToken, ...]:
     words: list[WordToken] = []
     previous_start = -math.inf
+    valid_duration = duration if duration is not None and math.isfinite(duration) and duration > 0 else None
 
     for segment in segments:
         for word in getattr(segment, "words", None) or []:
@@ -213,6 +230,18 @@ def collect_word_tokens(segments: Iterable[Any]) -> tuple[WordToken, ...]:
             )
             previous_start = start
 
+        if progress_callback is not None:
+            segment_end_value = getattr(segment, "end", None)
+            if valid_duration is not None and segment_end_value is not None:
+                try:
+                    segment_end = float(segment_end_value)
+                    progress = min(0.99, max(0.0, segment_end / valid_duration))
+                except (TypeError, ValueError):
+                    progress = None
+                _report_progress(progress_callback, "transcribing", progress)
+            else:
+                _report_progress(progress_callback, "transcribing", None)
+
     return tuple(words)
 
 
@@ -223,11 +252,13 @@ def transcribe_file(
     language: str | None = None,
     requested_device: str = "auto",
     vad_filter: bool = True,
+    progress_callback: ProgressCallback | None = None,
 ) -> TranscriptionResult:
     path = Path(input_path).expanduser().resolve()
     if not path.is_file():
         raise FileNotFoundError(f"Arquivo não encontrado: {path}")
 
+    _report_progress(progress_callback, "preparing", None)
     runtime = detect_runtime(requested_device)
 
     try:
@@ -238,6 +269,7 @@ def transcribe_file(
         ) from exc
 
     try:
+        _report_progress(progress_callback, "loading_model", None)
         model = WhisperModel(
             model_name,
             device=runtime.device,
@@ -249,7 +281,21 @@ def transcribe_file(
             word_timestamps=True,
             vad_filter=vad_filter,
         )
-        segment_list = list(segments)
+        duration_hint_value = getattr(info, "duration", None)
+        try:
+            duration_hint = None if duration_hint_value is None else float(duration_hint_value)
+        except (TypeError, ValueError):
+            duration_hint = None
+        _report_progress(
+            progress_callback,
+            "transcribing",
+            0.0 if duration_hint is not None and duration_hint > 0 else None,
+        )
+        words = collect_word_tokens(
+            segments,
+            duration=duration_hint,
+            progress_callback=progress_callback,
+        )
     except RuntimeError as exc:
         text = str(exc)
         if any(name.lower() in text.lower() for name in _WINDOWS_CUDA_DLLS):
@@ -260,10 +306,10 @@ def transcribe_file(
             ) from exc
         raise TranscriptionError(f"Falha no runtime de transcrição: {text}") from exc
 
-    words = collect_word_tokens(segment_list)
-
     if not words:
         raise TranscriptionError("Nenhuma palavra com timestamp foi detectada")
+
+    _report_progress(progress_callback, "finalizing", None)
 
     duration = float(getattr(info, "duration", words[-1].end))
     detected_language = str(getattr(info, "language", language or "unknown"))
