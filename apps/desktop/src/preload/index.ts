@@ -1,9 +1,10 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 
 contextBridge.exposeInMainWorld('srtStudio', {
   engineHealth: () => ipcRenderer.invoke('engine:health'),
   transcriptionRuntime: () => ipcRenderer.invoke('engine:runtime'),
   selectMedia: () => ipcRenderer.invoke('media:select'),
+  filePathFor: (file: File) => webUtils.getPathForFile(file),
   transcribe: (input: {
     filePath: string
     model: string
