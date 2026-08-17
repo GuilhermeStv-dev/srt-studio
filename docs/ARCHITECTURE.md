@@ -16,10 +16,12 @@ Responsável somente por experiência desktop:
 
 - abrir arquivos;
 - configurar transcrição e segmentação;
-- mostrar progresso;
+- mostrar progresso/estado;
 - solicitar operações ao engine;
-- pré-visualizar resultado;
+- pré-visualizar palavras e captions;
 - escolher destino de exportação.
+
+A UI **não** decide como o texto é segmentado nem valida SRT por conta própria.
 
 ### `engine/transcription`
 Responsável por:
@@ -27,7 +29,8 @@ Responsável por:
 - carregar modelo `faster-whisper`;
 - detectar/receber idioma;
 - produzir timestamps por palavra;
-- normalizar a resposta para `WordToken`.
+- normalizar a resposta para `WordToken`;
+- selecionar runtime CPU/CUDA via CTranslate2.
 
 Nenhuma regra de caption deve morar aqui.
 
@@ -47,8 +50,9 @@ Responsável por transformar palavras temporizadas em cues:
 - limites flexíveis e hard limits separados;
 - conectores ligados à palavra semanticamente relacionada;
 - pausas da fala;
-- duração mínima/máxima;
-- balanceamento final.
+- duração e integridade temporal;
+- balanceamento final;
+- comportamento determinístico e coberto por regressão.
 
 ### `engine/srt`
 Responsável por:
@@ -59,22 +63,51 @@ Responsável por:
 - renderizar UTF-8;
 - exportar sem sobrescrever silenciosamente.
 
-## Contrato inicial
+## Contratos principais
 
-`WordToken` é a unidade de entrada do segmentador.
+`WordToken` é a unidade temporal retornada pela transcrição e a entrada do segmentador.
 
-`CaptionCue` é a unidade validada antes de renderizar SRT.
+`CaptionCue` é a unidade de caption resultante da segmentação e validada antes de renderizar SRT.
 
-A UI deve consumir DTOs serializáveis e não objetos internos do Whisper.
+Pipeline pretendido:
+
+```text
+media
+  -> transcription
+  -> WordToken[]
+  -> normalization/segmentation
+  -> CaptionCue[]
+  -> srt validation/render
+  -> .srt
+```
+
+A UI consome DTOs serializáveis e nunca objetos internos do Whisper.
 
 ## IPC Desktop ↔ Engine
 
-Durante o desenvolvimento, Electron executa o Python como subprocesso e troca JSON por stdout/stdin. A primeira implementação expõe apenas `health`.
+Durante o desenvolvimento, Electron executa o Python como subprocesso e recebe JSON do CLI do engine.
 
-Antes de expandir o protocolo:
+O desktop já expõe operações para:
 
-- definir mensagens versionadas;
-- tratar cancelamento;
-- encaminhar progresso sem misturar logs com JSON;
-- definir erros tipados;
-- decidir empacotamento do Python/modelo para distribuição Windows.
+- `health`;
+- inspeção de `runtime`;
+- seleção local de mídia;
+- `transcribe`, retornando palavras e captions.
+
+Quando existe `.venv\Scripts\python.exe` no repositório, o Electron deve preferir esse Python ao Python global.
+
+### Regras para evolução do protocolo
+
+Antes de tornar o fluxo mais complexo:
+
+- manter stdout reservado para payload JSON quando necessário;
+- enviar logs/erros por canal separado ou stderr;
+- tratar cancelamento e progresso explicitamente;
+- não acoplar componentes React ao formato interno do Whisper;
+- manter erros serializáveis/tipados;
+- definir versionamento se o contrato começar a persistir entre releases;
+- decidir empacotamento do Python/modelo somente na fase de distribuição Windows.
+
+## Mudanças arquiteturais
+
+Qualquer proposta que mova responsabilidades entre camadas, introduza backend/cloud/API paga, troque a stack principal ou altere o produto standalone precisa de autorização explícita e registro em `docs/DECISIONS.md`.
