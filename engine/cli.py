@@ -68,7 +68,7 @@ def transcribe(args: argparse.Namespace) -> int:
         SegmentationConfig(
             target_words=args.target_words,
             ignore_prepositions=not args.count_prepositions,
-            preserve_punctuation=not args.no_punctuation,
+            preserve_commas_periods=not args.remove_commas_periods,
         ),
     )
     emit(
@@ -79,7 +79,7 @@ def transcribe(args: argparse.Namespace) -> int:
             "segmentation": {
                 "target_words": args.target_words,
                 "ignore_prepositions": not args.count_prepositions,
-                "preserve_punctuation": not args.no_punctuation,
+                "preserve_commas_periods": not args.remove_commas_periods,
                 "monetary_thousands": args.monetary_thousands,
             },
         }
@@ -160,9 +160,9 @@ def build_parser() -> argparse.ArgumentParser:
         help="Faz preposições consumirem vaga na contagem de palavras",
     )
     transcribe_parser.add_argument(
-        "--no-punctuation",
+        "--remove-commas-periods",
         action="store_true",
-        help="Remove pontuação nas bordas das palavras das captions",
+        help="Remove somente vírgulas e pontos nas bordas; ¿ ? ¡ ! são sempre preservados",
     )
     transcribe_parser.add_argument(
         "--monetary-thousands",
