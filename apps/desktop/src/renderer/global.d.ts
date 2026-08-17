@@ -54,6 +54,7 @@ declare global {
       engineHealth(): Promise<{ ok: boolean; engine: string; version: string; python_version: string; python_executable: string }>
       transcriptionRuntime(): Promise<RuntimeInfo>
       selectMedia(): Promise<{ canceled: boolean; filePath: string | null }>
+      filePathFor(file: File): string
       transcribe(input: {
         filePath: string
         model: string
