@@ -43,7 +43,7 @@ function App() {
   const [language, setLanguage] = useState('es')
   const [targetWords, setTargetWords] = useState(2)
   const [ignorePrepositions, setIgnorePrepositions] = useState(true)
-  const [preservePunctuation, setPreservePunctuation] = useState(true)
+  const [preserveCommasPeriods, setPreserveCommasPeriods] = useState(true)
   const [formatMonetaryThousands, setFormatMonetaryThousands] = useState(false)
   const [transcription, setTranscription] = useState<TranscriptionState>({
     status: 'idle',
@@ -119,7 +119,7 @@ function App() {
         language: language === 'auto' ? null : language,
         targetWords,
         ignorePrepositions,
-        preservePunctuation,
+        preserveCommasPeriods,
         formatMonetaryThousands
       })
       const fallbackLabel = result.runtime_warning ? ' · fallback CUDA → CPU' : ''
@@ -242,12 +242,12 @@ function App() {
             <label className="toggle-card">
               <input
                 type="checkbox"
-                checked={preservePunctuation}
-                onChange={(event) => setPreservePunctuation(event.target.checked)}
+                checked={preserveCommasPeriods}
+                onChange={(event) => setPreserveCommasPeriods(event.target.checked)}
               />
               <span>
-                <strong>Manter pontuação</strong>
-                <small>Preserva vírgulas, ¿ ?, ¡ ! e outros sinais da transcrição.</small>
+                <strong>Manter vírgulas e pontos</strong>
+                <small>Controla apenas “,” e “.”. ¿ ? ¡ ! são sempre preservados.</small>
               </span>
             </label>
 
