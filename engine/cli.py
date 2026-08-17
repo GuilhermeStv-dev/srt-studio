@@ -17,9 +17,20 @@ from engine.transcription import (
     transcribe_file,
 )
 
+_PROGRESS_PREFIX = "SRT_PROGRESS "
+
 
 def emit(payload: object) -> None:
     print(json.dumps(payload, ensure_ascii=False))
+
+
+def emit_progress(stage: str, progress: float | None) -> None:
+    payload: dict[str, object] = {"stage": stage, "progress": progress}
+    print(
+        f"{_PROGRESS_PREFIX}{json.dumps(payload, ensure_ascii=False)}",
+        file=sys.stderr,
+        flush=True,
+    )
 
 
 def health() -> int:
@@ -47,6 +58,7 @@ def runtime(device: str) -> int:
 
 
 def transcribe(args: argparse.Namespace) -> int:
+    progress_callback = emit_progress if args.progress_events else None
     try:
         result = transcribe_file(
             args.input,
@@ -54,6 +66,7 @@ def transcribe(args: argparse.Namespace) -> int:
             language=args.language,
             requested_device=args.device,
             vad_filter=not args.no_vad,
+            progress_callback=progress_callback,
         )
     except (FileNotFoundError, TranscriptionError, TranscriptionUnavailableError) as exc:
         print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False), file=sys.stderr)
@@ -71,6 +84,8 @@ def transcribe(args: argparse.Namespace) -> int:
             preserve_commas_periods=not args.remove_commas_periods,
         ),
     )
+    if args.progress_events:
+        emit_progress("completed", 1.0)
     emit(
         {
             "ok": True,
@@ -148,11 +163,16 @@ def build_parser() -> argparse.ArgumentParser:
     transcribe_parser.add_argument("--device", choices=["auto", "cuda", "cpu"], default="auto")
     transcribe_parser.add_argument("--no-vad", action="store_true")
     transcribe_parser.add_argument(
+        "--progress-events",
+        action="store_true",
+        help="Emite eventos de progresso estruturados em stderr para o desktop",
+    )
+    transcribe_parser.add_argument(
         "--target-words",
         type=int,
         choices=[1, 2, 3, 4],
         default=2,
-        help="Quantidade de palavras principais por caption",
+        help="Densidade preferida de palavras por caption",
     )
     transcribe_parser.add_argument(
         "--count-prepositions",
