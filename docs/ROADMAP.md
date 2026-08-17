@@ -53,7 +53,9 @@ Abordagem atual:
 - controle explícito de `1`, `2`, `3` ou `4` palavras por caption;
 - opção para ignorar preposições na contagem;
 - captions de uma palavra são válidas;
-- opção para manter/remover pontuação;
+- opção controla somente vírgulas e pontos nas bordas;
+- `¿`, `?`, `¡` e `!` são sempre preservados;
+- separadores internos como `50.000` e `1,5` são protegidos;
 - valores monetários reconhecidos viram blocos semânticos;
 - valor monetário é sempre caption isolada;
 - opção para normalizar moeda em `N mil` sem sufixo `guaraníes`;
@@ -66,28 +68,38 @@ A antiga estratégia baseada em aproximadamente 12 caracteres foi superada pela 
 
 Pendente para concluir:
 
-- validar os novos controles com áudio ES-PY real;
+- validar os controles com áudio ES-PY real;
 - testar 1, 2, 3 e 4 palavras no workflow real;
-- validar preposições e pontuação em exemplos reais;
+- validar preposições e vírgulas/pontos em exemplos reais;
+- confirmar `?`/`!` sempre preservados;
 - validar `50 mil`, `100 mil`, `200 mil` e outras moedas em fala real;
 - transformar qualquer comportamento considerado ruim em fixture/teste.
 
 Critério de saída: conjunto de amostras reais gera captions aceitáveis nas configurações principais, sem regressões conhecidas e com cada regra importante coberta por teste.
 
-## Fase 4 — SRT Premiere-safe ⬜
+## Fase 4 — SRT Premiere-safe 🟡
 
 Objetivo: gerar e salvar SRT confiável para uso direto no Premiere.
 
-Entregas:
+Implementado em código:
 
 - `CaptionCue[] -> SRT`;
 - timestamps SRT válidos;
-- UTF-8;
+- UTF-8 sem BOM;
+- CRLF no arquivo SRT;
 - validação final de cue vazio/duração zero/overlap/regressão;
+- comando CLI `export-srt`;
 - botão **Exportar SRT** no desktop;
 - seletor de destino;
-- nunca sobrescrever silenciosamente arquivo existente;
-- mensagens de erro claras.
+- confirmação explícita antes de substituir arquivo existente;
+- mensagens de sucesso/erro/cancelamento na interface.
+
+Pendente para concluir:
+
+- validar o fluxo no Windows real;
+- abrir/importar o SRT exportado no Adobe Premiere;
+- conferir acentos, `¿ ? ¡ !`, timestamps e quantidade total de captions;
+- confirmar comportamento de sobrescrita no fluxo real.
 
 Critério de saída: SRT exportado abre/importa corretamente no Premiere e passa a validação automatizada.
 
@@ -167,7 +179,7 @@ Não implementar sem nova decisão explícita:
 
 ## Checkpoint atual
 
-1. Validar a nova segmentação por palavras no mesmo áudio ES-PY real.
-2. Validar preposição, pontuação e moeda isolada.
-3. Concluir Fase 3.
-4. Implementar Fase 4: exportação SRT pela interface.
+1. Validar no Windows a regra de vírgulas/pontos e `?`/`!` obrigatórios.
+2. Transcrever o mesmo áudio ES-PY real com a configuração desejada.
+3. Exportar o SRT pela interface.
+4. Importar o SRT no Premiere e validar a Fase 4.
