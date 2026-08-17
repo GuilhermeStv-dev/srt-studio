@@ -1,7 +1,7 @@
 export {}
 
 type RuntimeInfo =
-  | { ok: true; available: true; device: string; compute_type: string; cuda_devices: number }
+  | { ok: true; available: true; device: string; compute_type: string; cuda_devices: number; warning?: string | null }
   | { ok: false; available: false; error: string }
 
 type TranscriptionWord = {
@@ -25,6 +25,7 @@ type TranscriptionResult = {
   model: string
   device: string
   compute_type: string
+  runtime_warning?: string | null
   words: TranscriptionWord[]
   captions: CaptionPreview[]
 }
