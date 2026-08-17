@@ -1,0 +1,29 @@
+name: Windows packaging
+
+on:
+  pull_request:
+    paths:
+      - 'engine/**'
+      - 'scripts/build-engine.ps1'
+      - 'scripts/engine_entry.py'
+      - 'pyproject.toml'
+      - 'apps/desktop/src/main/**'
+      - '.github/workflows/windows-packaging.yml'
+  workflow_dispatch:
+
+jobs:
+  engine-standalone:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Create project venv
+        run: python -m venv .venv
+      - name: Build standalone engine
+        shell: pwsh
+        run: pwsh -ExecutionPolicy Bypass -File .\scripts\build-engine.ps1
+      - name: Verify packaged health
+        shell: pwsh
+        run: .\dist\engine\srt-studio-engine\srt-studio-engine.exe health
