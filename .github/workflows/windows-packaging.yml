@@ -30,6 +30,14 @@ jobs:
       - name: Build Windows installer
         shell: pwsh
         run: npm run make:win
+      - name: Verify Squirrel runtime is bundled
+        shell: pwsh
+        run: |
+          $main = Get-Content -Path .\apps\desktop\out\main\index.js -Raw
+          if ($main.Contains('require("electron-squirrel-startup")') -or $main.Contains("require('electron-squirrel-startup')")) {
+            throw 'electron-squirrel-startup permaneceu como dependência externa no main bundle.'
+          }
+          Write-Host 'Squirrel startup está embutido no main bundle.'
       - name: Verify Setup executable
         shell: pwsh
         run: |
