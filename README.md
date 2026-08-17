@@ -4,7 +4,7 @@ Aplicativo desktop Windows para transformar áudio/vídeo em **SRT pronto para e
 
 ## Estado atual
 
-**Fase 2 — Motor de transcrição** em andamento. A Fundação já está concluída.
+**Fase 2 — transcrição em validação real** e **Fase 3 — segmentação ES-PY iniciada**. A Fundação já está concluída.
 
 Esta base já contém:
 
@@ -15,7 +15,7 @@ Esta base já contém:
 - geração e validação estrutural de SRT;
 - health-check do engine via CLI;
 - ponte IPC Electron → Python para verificar o engine;
-- testes unitários iniciais;
+- 23 testes unitários do engine;
 - CI inicial para engine Python e typecheck/build do desktop.
 
 ## Objetivo do MVP
@@ -88,18 +88,17 @@ npm install
 npm run dev
 ```
 
-O Electron abre o preview real do aplicativo. A tela permite selecionar mídia, escolher modelo/idioma, verificar o runtime e, quando `faster-whisper` estiver instalado, executar a transcrição e visualizar palavras com timestamps.
+O Electron abre o preview real do aplicativo. A tela permite selecionar mídia, escolher modelo/idioma e alvo de caracteres, verificar o runtime, transcrever e visualizar as captions geradas. Os WordTokens brutos continuam disponíveis em uma área expansível.
 
-## Habilitar transcrição local
+## Preparar ambiente completo no Windows
 
 ```powershell
-py -3.12 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -e ".[transcription]"
-python -m engine.cli runtime
+powershell -ExecutionPolicy Bypass -File .\scripts\bootstrap.ps1
 npm run dev
 ```
 
+O script cria uma `.venv`, instala `faster-whisper`, roda os testes e verifica o runtime local. O Electron usa automaticamente o Python dessa `.venv` quando ela existe.
+
 ## Próximo passo
 
-Validar uma transcrição ES-PY real no Windows e então iniciar o segmentador `WordToken[] -> CaptionCue[]` guiado por testes.
+Validar uma transcrição ES-PY real no Windows, revisar o preview de captions e transformar os casos ruins em testes de regressão para calibrar o segmentador.
