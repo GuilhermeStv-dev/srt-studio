@@ -5,10 +5,15 @@
 - Sem API paga.
 - Idioma prioritário: espanhol paraguaio (ES-PY).
 - Timestamps por palavra como fonte de verdade temporal.
-- Aproximadamente 12 caracteres por caption é **preferência**, não corte obrigatório.
-- Evitar preposições, artigos e conectores isolados.
-- Preservar `?`, `!` e vírgulas contextualmente úteis.
-- Remover ponto final quando o preset solicitar.
+- O controle principal de segmentação é **quantidade de palavras por caption: 1, 2, 3 ou 4**.
+- O usuário pode ativar **Ignorar preposições na contagem**. Nesse modo, a preposição permanece no texto sem consumir uma vaga; exemplo com alvo de 1 palavra: `para vos` pode ficar junto.
+- O usuário pode ativar/desativar **Manter pontuação**. Quando desligado, sinais nas bordas das palavras são removidos sem destruir pontuação interna de números como `50.000` ou `1,5`.
+- Captions de uma palavra são válidas. Não existe regra genérica obrigando duas ou mais palavras.
+- **Todo valor monetário reconhecido deve ocupar uma caption isolada**, independentemente do alvo de palavras e da opção de preposições. Ex.: `con 50 mil` deve resultar em `con` / `50 mil`.
+- O usuário pode ativar **Valores monetários no formato “mil”**. Quando ligado, valores redondos em milhares são normalizados, por exemplo `₲200.000`, `200.000 guaraníes`, `200 mil guaraníes` ou `doscientos mil guaraníes` → `200 mil`.
+- Quando o formato monetário “mil” estiver ligado, **não exibir `guaraníes`/`guaranies` depois do valor**; a saída correta é somente `200 mil`.
+- A normalização monetária incide **somente sobre valores monetários**. Números não monetários, como `50.000 habitantes`, horários, quantidades, placares e medidas, não devem ser alterados.
+- Quando a opção de formato monetário estiver desligada, preservar a forma reconhecida pelo Whisper tanto quanto possível, mas ainda tratar o valor como bloco monetário isolado.
 - Proteger números e unidades semanticamente ligadas.
 - Nunca produzir duração zero.
 - Nunca produzir overlap.
