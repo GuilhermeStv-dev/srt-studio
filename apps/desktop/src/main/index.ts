@@ -127,17 +127,23 @@ app.whenReady().then(() => {
       filePath: string
       model: string
       language: string | null
-      targetChars: number
+      targetWords: number
+      ignorePrepositions: boolean
+      preservePunctuation: boolean
+      formatMonetaryThousands: boolean
     }) => {
       const args = [
         'transcribe',
         input.filePath,
         '--model',
         input.model,
-        '--target-chars',
-        String(input.targetChars)
+        '--target-words',
+        String(input.targetWords)
       ]
       if (input.language) args.push('--language', input.language)
+      if (!input.ignorePrepositions) args.push('--count-prepositions')
+      if (!input.preservePunctuation) args.push('--no-punctuation')
+      if (input.formatMonetaryThousands) args.push('--monetary-thousands')
       return runEngineJson(args)
     }
   )
