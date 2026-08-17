@@ -1,11 +1,23 @@
 import { app, BrowserWindow, dialog, ipcMain } from 'electron'
 import { spawn } from 'node:child_process'
+import { existsSync } from 'node:fs'
 import path from 'node:path'
 
 function repoRoot(): string {
   return app.isPackaged
     ? process.resourcesPath
     : path.resolve(__dirname, '../../../..')
+}
+
+function pythonExecutable(): string {
+  const override = process.env.SRT_STUDIO_PYTHON?.trim()
+  if (override) return override
+
+  const localPython = process.platform === 'win32'
+    ? path.join(repoRoot(), '.venv', 'Scripts', 'python.exe')
+    : path.join(repoRoot(), '.venv', 'bin', 'python')
+
+  return existsSync(localPython) ? localPython : 'python'
 }
 
 function parseJson(value: string, fallbackMessage: string): unknown {
@@ -18,7 +30,7 @@ function parseJson(value: string, fallbackMessage: string): unknown {
 
 function runEngineJson(args: string[], acceptNonZero = false): Promise<unknown> {
   return new Promise((resolve, reject) => {
-    const child = spawn('python', ['-m', 'engine.cli', ...args], {
+    const child = spawn(pythonExecutable(), ['-m', 'engine.cli', ...args], {
       cwd: repoRoot(),
       windowsHide: true
     })
@@ -104,8 +116,20 @@ app.whenReady().then(() => {
 
   ipcMain.handle(
     'engine:transcribe',
-    async (_event, input: { filePath: string; model: string; language: string | null }) => {
-      const args = ['transcribe', input.filePath, '--model', input.model]
+    async (_event, input: {
+      filePath: string
+      model: string
+      language: string | null
+      targetChars: number
+    }) => {
+      const args = [
+        'transcribe',
+        input.filePath,
+        '--model',
+        input.model,
+        '--target-chars',
+        String(input.targetChars)
+      ]
       if (input.language) args.push('--language', input.language)
       return runEngineJson(args)
     }
