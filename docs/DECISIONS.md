@@ -28,11 +28,11 @@ Este arquivo registra decisões que uma IA **não deve reinterpretar silenciosam
 
 **Consequência:** segmentação não inventa tempos arbitrários e não deve destruir timestamps originais sem necessidade.
 
-## D-005 — ~12 caracteres é preferência
+## D-005 — SUPERADA: ~12 caracteres como preferência
 
-**Decisão:** o alvo de aproximadamente 12 caracteres por caption é uma função de custo/preferência, não uma regra rígida.
+**Status:** superada por D-011 em 17/08/2026.
 
-**Consequência:** integridade linguística, números, palavras longas, pausas e conectores podem justificar captions maiores/menores.
+A primeira versão usava aproximadamente 12 caracteres por caption como preferência. O teste real levou à mudança de produto para contagem explícita de palavras.
 
 ## D-006 — Regras ES-PY guiadas por regressão
 
@@ -61,3 +61,18 @@ Este arquivo registra decisões que uma IA **não deve reinterpretar silenciosam
 **Decisão:** agentes devem trabalhar em branch dedicada e propor PR. A `main` representa o último estado aceito.
 
 **Motivo:** permitir revisão, rollback e impedir que um agente destrua o estado estável enquanto experimenta.
+
+## D-011 — Segmentação por quantidade de palavras
+
+**Decisão:** o controle de segmentação exposto ao usuário passa a ser `1`, `2`, `3` ou `4` palavras por caption. Contagem por caracteres deixa de ser a abordagem principal.
+
+**Opções independentes:**
+- ignorar preposições na contagem;
+- manter/remover pontuação;
+- formatar valores monetários redondos no padrão `N mil`.
+
+**Regra de precedência:** valores monetários reconhecidos são sempre captions isoladas. A regra monetária vence a contagem de palavras e a regra de preposições. Ex.: `con 50 mil` → `con` / `50 mil`.
+
+**Regra de moeda:** quando a opção `N mil` estiver ligada, `guaraníes`/`guaranies`, `₲` e marcadores equivalentes servem para reconhecer a moeda, mas não aparecem depois do valor final. Ex.: `200 mil guaraníes` → `200 mil`.
+
+**Segurança:** a transformação só deve ocorrer quando houver evidência de valor monetário. Números comuns não podem ser reinterpretados silenciosamente como dinheiro.

@@ -22,11 +22,11 @@ Entregas:
 
 Critério de saída: projeto roda em modo dev, engine responde ao health-check e CI valida engine + desktop.
 
-## Fase 2 — Motor de transcrição 🟡
+## Fase 2 — Motor de transcrição ✅
 
 Objetivo: transformar áudio/vídeo em palavras temporizadas usando `faster-whisper`.
 
-Entregas já implementadas:
+Entregas concluídas:
 
 - adapter `faster-whisper` isolado;
 - detecção CUDA/CPU via CTranslate2;
@@ -34,41 +34,45 @@ Entregas já implementadas:
 - VAD por padrão;
 - CLI `runtime` e `transcribe`;
 - UI para escolher mídia/modelo/idioma;
-- retorno `WordToken[]` serializável.
+- retorno `WordToken[]` serializável;
+- `.venv` Python 3.12 validada no Windows;
+- primeiro arquivo ES-PY real transcrito com sucesso;
+- fallback CPU validado quando CUDA/cuDNN não estão completos;
+- correção UTF-8 após caso real.
 
-Pendente para concluir:
+Observação: concluir o runtime NVIDIA/CUDA continua desejável para desempenho, mas não bloqueia o critério funcional da Fase 2 porque o pipeline local já transcreve de ponta a ponta.
 
-- validar `.venv` e `faster-whisper` em Windows real;
-- confirmar CUDA/compute type;
-- transcrever arquivo ES-PY real;
-- medir tempo, RAM/VRAM e erros relevantes;
-- registrar pelo menos uma fixture/caso real de regressão.
-
-Critério de saída: um arquivo ES-PY real é transcrito no Windows e produz `WordToken[]` coerente sem erro estrutural.
+Critério de saída atingido: arquivo ES-PY real transcrito no Windows produzindo `WordToken[]` coerente sem erro estrutural.
 
 ## Fase 3 — Segmentação ES-PY 🟡
 
-Objetivo: transformar `WordToken[]` em captions legíveis e previsíveis.
+Objetivo: transformar `WordToken[]` em captions legíveis e previsíveis para o workflow real.
 
-Entregas já implementadas:
+Abordagem atual:
 
-- segmentador determinístico com programação dinâmica;
-- alvo padrão ~12 caracteres como preferência;
-- hard limit separado;
-- preferência por pausas e `?`/`!`;
-- penalidade para conectores/preposições/artigos isolados ou pendurados;
+- controle explícito de `1`, `2`, `3` ou `4` palavras por caption;
+- opção para ignorar preposições na contagem;
+- captions de uma palavra são válidas;
+- opção para manter/remover pontuação;
+- valores monetários reconhecidos viram blocos semânticos;
+- valor monetário é sempre caption isolada;
+- opção para normalizar moeda em `N mil` sem sufixo `guaraníes`;
+- números não monetários não devem ser alterados;
 - proteção contra cues inválidos e overlap;
 - preview de captions na UI;
-- testes sintéticos de regressão.
+- testes de regressão.
+
+A antiga estratégia baseada em aproximadamente 12 caracteres foi superada pela decisão D-011.
 
 Pendente para concluir:
 
-- calibrar com áudio ES-PY real;
-- adicionar fixtures de cortes ruins reais;
-- validar grupos numéricos/monetários e expressões frequentes;
-- revisar duração, balanceamento final e pausas.
+- validar os novos controles com áudio ES-PY real;
+- testar 1, 2, 3 e 4 palavras no workflow real;
+- validar preposições e pontuação em exemplos reais;
+- validar `50 mil`, `100 mil`, `200 mil` e outras moedas em fala real;
+- transformar qualquer comportamento considerado ruim em fixture/teste.
 
-Critério de saída: conjunto de amostras reais gera captions aceitáveis sem regressões conhecidas, com cada regra importante coberta por teste.
+Critério de saída: conjunto de amostras reais gera captions aceitáveis nas configurações principais, sem regressões conhecidas e com cada regra importante coberta por teste.
 
 ## Fase 4 — SRT Premiere-safe ⬜
 
@@ -163,7 +167,7 @@ Não implementar sem nova decisão explícita:
 
 ## Checkpoint atual
 
-1. Validar transcrição ES-PY real no Windows.
-2. Revisar captions e transformar cortes ruins em regressão.
-3. Concluir Fases 2 e 3.
+1. Validar a nova segmentação por palavras no mesmo áudio ES-PY real.
+2. Validar preposição, pontuação e moeda isolada.
+3. Concluir Fase 3.
 4. Implementar Fase 4: exportação SRT pela interface.
