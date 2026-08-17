@@ -5,8 +5,8 @@
 ## Fase
 
 **2. Motor de transcrição — concluído funcionalmente**  
-**3. Segmentação ES-PY — contagem por palavras em validação real**  
-**4. SRT Premiere-safe — implementado em código, aguardando validação no Premiere**  
+**3. Segmentação ES-PY — segmentação inteligente em validação real**  
+**4. SRT Premiere-safe — exportação validada no Windows, aguardando importação no Premiere**  
 **5. Desktop funcional — em andamento**
 
 ## Fundação concluída
@@ -43,8 +43,16 @@
 ## Segmentação ES-PY — abordagem atual
 
 - [x] `WordToken[] -> CaptionCue[]`
-- [x] controle explícito de `1`, `2`, `3` ou `4` palavras por caption
+- [x] alvo configurável de `1`, `2`, `3` ou `4` palavras por caption
+- [x] alvo tratado como preferência forte, não corte mecânico
+- [x] escolha global de fronteiras por programação dinâmica
+- [x] cadência baseada nos gaps reais entre timestamps das palavras
+- [x] limiares de pausa adaptados ao ritmo do próprio trecho
+- [x] coesão curta para evitar cortes ruins como `qué` / `tal`
+- [x] expansão inteligente curta: alvo 1 pode formar pares, mas não frases longas
+- [x] pausa forte vence coesão e força fronteira
 - [x] opção para ignorar preposições na contagem
+- [x] preposição pode se ligar ao lado mais natural, ex. `participar en`
 - [x] captions de uma palavra permitidas
 - [x] opção **Manter vírgulas e pontos** controla somente `,` e `.` nas bordas
 - [x] `¿`, `?`, `¡` e `!` são sempre preservados
@@ -53,7 +61,7 @@
 - [x] opção `Valores monetários no formato “mil”`
 - [x] `200 mil guaraníes` → `200 mil` quando a opção está ligada
 - [x] valores monetários reconhecidos são SEMPRE captions isoladas
-- [x] `con 50 mil` → `con` / `50 mil`, independentemente da regra de preposição
+- [x] `con 50 mil` → `con` / `50 mil`, independentemente da regra de preposição/cadência
 - [x] números não monetários como `50.000 habitantes` permanecem intactos
 - [x] cues com duração positiva e sem overlap
 - [x] preview de captions conectado ao resultado da transcrição
@@ -70,6 +78,8 @@
 - [x] sobrescrita bloqueada por padrão
 - [x] substituição exige confirmação explícita
 - [x] exportação usa todas as captions
+- [x] exportação SRT testada com sucesso no Windows
+- [ ] importação final no Adobe Premiere ainda precisa ser confirmada
 
 ## Desktop funcional — implementação atual
 
@@ -87,9 +97,18 @@
 
 ## Validação automatizada
 
-A suíte atual cobre engine de transcrição/segmentação/SRT e a CI valida também typecheck e build do desktop.
+A suíte cobre engine de transcrição/segmentação/SRT e a CI valida também typecheck e build do desktop.
 
-Regressões relevantes já cobertas:
+Regressões de segmentação inteligente incluem o trecho real usado na calibração:
+
+- `Hola,` / `¿qué tal?`;
+- `participar en` / `un juego?`;
+- `¿Quién se` / `anima?` sem preservar a frase inteira;
+- `acá ya` quando falado colado;
+- pausa forte separando até pares coesos;
+- moeda sempre isolada.
+
+Outras regressões relevantes:
 
 - `?` / `!` preservados mesmo com vírgulas/pontos desligados;
 - separadores numéricos protegidos;
@@ -101,25 +120,23 @@ Regressões relevantes já cobertas:
 
 ## Ainda precisa de validação em máquina real
 
-- [ ] repetir áudio ES-PY real com a configuração de palavras desejada
-- [ ] confirmar `?` / `!` sempre preservados
-- [ ] validar `,` / `.` ligado e desligado
+- [ ] repetir o mesmo áudio ES-PY com o segmentador inteligente
+- [ ] confirmar `¿qué tal?`, `participar en`, `un juego?`, `¿Quién se` / `anima?` e `acá ya`
+- [ ] coletar novos cortes considerados ruins e transformá-los em regressão
 - [ ] validar valores monetários em fala real
-- [ ] exportar `.srt` pela interface
 - [ ] importar o SRT no Adobe Premiere
 - [ ] confirmar acentos, timestamps e sincronia no Premiere
-- [ ] validar drag-and-drop no Windows com WAV/MOV/MP4
-- [ ] confirmar que o preview permite percorrer todas as captions
 - [ ] concluir CUDA/cuDNN para testar inferência GPU sem fallback
 
 ## Próximas entregas
 
-1. validar exportação SRT e drag-and-drop no Windows/Premiere;
-2. concluir Fase 3 com amostras reais;
-3. implementar progresso/cancelamento de transcrição em PR separado;
-4. completar runtime CUDA para desempenho;
-5. presets;
-6. instalador Windows.
+1. validar o novo segmentador inteligente no mesmo áudio real;
+2. transformar novos exemplos reais em testes até fechar Fase 3;
+3. confirmar importação SRT no Premiere e fechar Fase 4;
+4. implementar progresso/cancelamento de transcrição em PR separado;
+5. completar runtime CUDA para desempenho;
+6. presets;
+7. instalador Windows.
 
 ## Preview visual
 
