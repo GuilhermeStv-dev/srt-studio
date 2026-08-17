@@ -7,6 +7,7 @@ from .faster_whisper_adapter import (
     TranscriptionUnavailableError,
     collect_word_tokens,
     detect_runtime,
+    find_missing_windows_cuda_libraries,
     select_runtime,
     transcribe_file,
 )
@@ -18,6 +19,7 @@ __all__ = [
     "TranscriptionUnavailableError",
     "collect_word_tokens",
     "detect_runtime",
+    "find_missing_windows_cuda_libraries",
     "select_runtime",
     "transcribe_file",
 ]

@@ -62,9 +62,10 @@ function App() {
     try {
       const result = await window.srtStudio.transcriptionRuntime()
       if (result.ok && result.available) {
+        const base = `${result.device.toUpperCase()} · ${result.compute_type}`
         setRuntime({
           status: 'ready',
-          message: `${result.device.toUpperCase()} · ${result.compute_type}`
+          message: result.warning ? `${base} · fallback CUDA` : base
         })
       } else {
         setRuntime({ status: 'missing', message: result.error })
@@ -98,9 +99,10 @@ function App() {
         language: language === 'auto' ? null : language,
         targetChars
       })
+      const fallbackLabel = result.runtime_warning ? ' · fallback CUDA → CPU' : ''
       setTranscription({
         status: 'success',
-        message: `${result.captions.length} captions · ${result.words.length} palavras · ${result.language} · ${result.device.toUpperCase()} · ${result.duration.toFixed(1)}s`,
+        message: `${result.captions.length} captions · ${result.words.length} palavras · ${result.language} · ${result.device.toUpperCase()}${fallbackLabel} · ${result.duration.toFixed(1)}s`,
         words: result.words.slice(0, 24),
         captions: result.captions.slice(0, 18)
       })
