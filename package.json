@@ -1,0 +1,19 @@
+{
+  "name": "srt-studio",
+  "version": "0.1.0-dev.0",
+  "private": true,
+  "description": "Desktop local para transcrição e geração de SRT Premiere-safe.",
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm --workspace @srt-studio/desktop run dev",
+    "build": "npm --workspace @srt-studio/desktop run build",
+    "typecheck": "npm --workspace @srt-studio/desktop run typecheck",
+    "test:engine": "python -m unittest discover -s tests/engine -p \"test_*.py\" -v",
+    "engine:health": "python -m engine.cli health"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
