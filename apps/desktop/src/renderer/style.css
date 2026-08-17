@@ -97,6 +97,7 @@ select {
 .toggle-card span { display: grid; gap: 5px; }
 .toggle-card strong { color: #ececf1; font-size: 13px; line-height: 1.3; }
 .toggle-card small { color: #858994; font-size: 11px; line-height: 1.45; }
+.toggle-card:has(input:disabled) { opacity: .55; cursor: not-allowed; }
 .engine-line { display: flex; align-items: center; justify-content: space-between; gap: 14px; color: #8f929b; font-size: 13px; }
 
 button {
@@ -111,10 +112,48 @@ button {
 }
 button.secondary { border: 1px solid #393b47; color: #f4f2ff; background: #23252c; }
 button.ghost { padding: 8px 11px; border: 1px solid #30323c; color: #b9bbc3; background: transparent; font-size: 12px; }
-button:disabled { opacity: .45; cursor: not-allowed; }
+button.cancel-button { color: #ffb6b6; border-color: rgba(255, 157, 157, .35); }
+button:disabled, select:disabled { opacity: .45; cursor: not-allowed; }
 
 .result { min-height: 190px; }
 .result-actions { display: flex; gap: 10px; align-items: center; }
+.transcription-progress {
+  display: grid;
+  gap: 10px;
+  margin-top: 20px;
+  padding: 14px;
+  border: 1px solid #30323c;
+  border-radius: 12px;
+  background: #15161a;
+}
+.progress-meta { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.progress-meta strong { font-size: 12px; color: #d9dae0; }
+.progress-meta span { color: #a9a4ff; font-size: 12px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.progress-track {
+  position: relative;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #252730;
+}
+.progress-fill {
+  height: 100%;
+  min-width: 2px;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #7771ff, #9f99ff);
+  transition: width .18s ease;
+}
+.progress-track.indeterminate .progress-fill {
+  position: absolute;
+  width: 34%;
+  min-width: 96px;
+  animation: progress-slide 1.1s ease-in-out infinite;
+}
+.transcription-progress small { color: #777b86; font-size: 10px; line-height: 1.45; }
+@keyframes progress-slide {
+  0% { transform: translateX(-120%); }
+  100% { transform: translateX(340%); }
+}
 .export-status {
   display: grid;
   gap: 4px;
@@ -162,4 +201,5 @@ button:disabled { opacity: .45; cursor: not-allowed; }
   .field-row, .field-row.three { grid-template-columns: 1fr; }
   .caption-row { grid-template-columns: 28px minmax(0, 1fr); }
   .caption-row small { grid-column: 2; }
+  .progress-meta { align-items: flex-start; flex-direction: column; gap: 4px; }
 }
