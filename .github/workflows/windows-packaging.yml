@@ -30,6 +30,46 @@ jobs:
       - name: Build Windows installer
         shell: pwsh
         run: npm run make:win
+      - name: Verify standalone UTF-8 I/O
+        shell: pwsh
+        run: |
+          $engine = (Resolve-Path '.\dist\engine\srt-studio-engine\srt-studio-engine.exe').Path
+          $outputPath = Join-Path $env:RUNNER_TEMP '¿prueba-á.srt'
+          if (Test-Path $outputPath) { Remove-Item $outputPath -Force }
+
+          $payload = '{"captions":[{"text":"¿Quién está acá?","start":0.0,"end":1.0}]}'
+          $utf8 = [System.Text.UTF8Encoding]::new($false)
+          $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
+          $startInfo.FileName = $engine
+          $startInfo.UseShellExecute = $false
+          $startInfo.CreateNoWindow = $true
+          $startInfo.RedirectStandardInput = $true
+          $startInfo.RedirectStandardOutput = $true
+          $startInfo.RedirectStandardError = $true
+          $startInfo.StandardInputEncoding = $utf8
+          $startInfo.StandardOutputEncoding = $utf8
+          $startInfo.StandardErrorEncoding = $utf8
+          [void]$startInfo.ArgumentList.Add('export-srt')
+          [void]$startInfo.ArgumentList.Add('--output')
+          [void]$startInfo.ArgumentList.Add($outputPath)
+
+          $process = [System.Diagnostics.Process]::new()
+          $process.StartInfo = $startInfo
+          [void]$process.Start()
+          $process.StandardInput.Write($payload)
+          $process.StandardInput.Close()
+          $stdout = $process.StandardOutput.ReadToEnd()
+          $stderr = $process.StandardError.ReadToEnd()
+          $process.WaitForExit()
+
+          if ($process.ExitCode -ne 0) { throw "Engine UTF-8 smoke falhou: $stderr" }
+          $result = $stdout | ConvertFrom-Json
+          if (-not $result.ok) { throw 'Engine não retornou ok no smoke UTF-8.' }
+          if (-not $stdout.Contains('¿prueba-á.srt')) { throw "stdout corrompeu UTF-8: $stdout" }
+
+          $srt = [System.IO.File]::ReadAllText($outputPath, [System.Text.Encoding]::UTF8)
+          if (-not $srt.Contains('¿Quién está acá?')) { throw "SRT corrompeu UTF-8: $srt" }
+          Write-Host 'Engine standalone preservou UTF-8 em stdin, stdout e SRT.'
       - name: Verify Squirrel runtime is bundled
         shell: pwsh
         run: |
