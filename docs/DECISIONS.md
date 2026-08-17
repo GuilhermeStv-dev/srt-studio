@@ -68,8 +68,10 @@ A primeira versão usava aproximadamente 12 caracteres por caption como preferê
 
 **Opções independentes:**
 - ignorar preposições na contagem;
-- manter/remover pontuação;
+- manter/remover somente vírgulas e pontos (`preserve_commas_periods`);
 - formatar valores monetários redondos no padrão `N mil`.
+
+**Pontuação obrigatória:** `¿`, `?`, `¡` e `!` são sempre preservados e não podem ser removidos pela opção de vírgulas/pontos. Separadores internos de números como `50.000` e `1,5` também são protegidos.
 
 **Regra de precedência:** valores monetários reconhecidos são sempre captions isoladas. A regra monetária vence a contagem de palavras e a regra de preposições. Ex.: `con 50 mil` → `con` / `50 mil`.
 
