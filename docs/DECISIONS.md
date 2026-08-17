@@ -64,7 +64,9 @@ A primeira versão usava aproximadamente 12 caracteres por caption como preferê
 
 ## D-011 — Segmentação por quantidade de palavras
 
-**Decisão:** o controle de segmentação exposto ao usuário passa a ser `1`, `2`, `3` ou `4` palavras por caption. Contagem por caracteres deixa de ser a abordagem principal.
+**Status:** refinada por D-012 em 17/08/2026.
+
+**Decisão original:** o controle exposto ao usuário passou a ser `1`, `2`, `3` ou `4` palavras por caption. Contagem por caracteres deixou de ser a abordagem principal.
 
 **Opções independentes:**
 - ignorar preposições na contagem;
@@ -78,3 +80,26 @@ A primeira versão usava aproximadamente 12 caracteres por caption como preferê
 **Regra de moeda:** quando a opção `N mil` estiver ligada, `guaraníes`/`guaranies`, `₲` e marcadores equivalentes servem para reconhecer a moeda, mas não aparecem depois do valor final. Ex.: `200 mil guaraníes` → `200 mil`.
 
 **Segurança:** a transformação só deve ocorrer quando houver evidência de valor monetário. Números comuns não podem ser reinterpretados silenciosamente como dinheiro.
+
+## D-012 — Segmentação inteligente: alvo + cadência + coesão curta
+
+**Decisão:** `1`, `2`, `3` ou `4` palavras deixam de funcionar como corte mecânico e passam a ser um **alvo forte de densidade**. A fronteira final deve considerar também a pausa real entre `WordToken`s, pontuação e coesão lexical curta.
+
+**Objetivo:** acompanhar o ritmo da fala sem destruir expressões que perdem naturalidade quando cortadas apenas por contagem.
+
+**Exemplos com alvo de 1 palavra:**
+- `Hola,` / `¿qué tal?` é preferível a `Hola,` / `¿qué` / `tal?` quando `qué tal` foi falado sem pausa relevante;
+- `participar en` pode ser preferível a `participar` / `en un`;
+- `un juego?` pode permanecer junto;
+- `¿Quién se` / `anima?` é preferível a preservar `¿Quién se anima?` inteiro, pois a expansão inteligente deve continuar curta;
+- `acá ya` pode permanecer junto quando pronunciado como bloco curto.
+
+**Limite:** a inteligência pode deslocar a fronteira em aproximadamente uma palavra física além do alvo, mas não deve usar “frase semanticamente completa” como justificativa para gerar captions longas.
+
+**Cadência:** pausas fortes vencem coesão. Se uma expressão normalmente ligada for pronunciada com pausa perceptível, a quebra deve ocorrer.
+
+**Implementação MVP:** usar os gaps reais derivados de `start/end` dos `WordToken`s como sinal de cadência, com limiares adaptados ao próprio trecho. Não adicionar LLM/agente ao pipeline para essa decisão.
+
+**Otimização:** escolher fronteiras globalmente por score/ programação dinâmica, em vez de greedy rígido por contagem.
+
+**Regras estruturais preservadas:** moeda continua sempre isolada; `¿ ? ¡ !` continuam obrigatórios; SRT continua sem overlap/duração zero/timestamp regressivo.
