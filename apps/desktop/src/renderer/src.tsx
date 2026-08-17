@@ -1,5 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
+import {
+  BUILTIN_PRESETS,
+  createCustomPreset,
+  loadCustomPresets,
+  persistCustomPresets,
+  samePresetSettings,
+  type Preset,
+  type PresetSettings
+} from './presets'
 import './style.css'
 
 type HealthState =
@@ -77,6 +86,8 @@ function App() {
   const [ignorePrepositions, setIgnorePrepositions] = useState(true)
   const [preserveCommasPeriods, setPreserveCommasPeriods] = useState(true)
   const [formatMonetaryThousands, setFormatMonetaryThousands] = useState(false)
+  const [customPresets, setCustomPresets] = useState<Preset[]>(() => loadCustomPresets())
+  const [presetMessage, setPresetMessage] = useState<string | null>(null)
   const [transcription, setTranscription] = useState<TranscriptionState>({
     status: 'idle',
     message: 'Selecione um arquivo para iniciar a primeira transcrição real.'
@@ -88,6 +99,84 @@ function App() {
 
   const selectedName = useMemo(() => fileName(filePath), [filePath])
   const isTranscribing = transcription.status === 'loading'
+  const allPresets = useMemo(() => [...BUILTIN_PRESETS, ...customPresets], [customPresets])
+  const currentSettings = useMemo<PresetSettings>(() => ({
+    model,
+    language,
+    targetWords,
+    ignorePrepositions,
+    preserveCommasPeriods,
+    formatMonetaryThousands
+  }), [
+    model,
+    language,
+    targetWords,
+    ignorePrepositions,
+    preserveCommasPeriods,
+    formatMonetaryThousands
+  ])
+  const activePresetId = useMemo(
+    () => allPresets.find((preset) => samePresetSettings(preset, currentSettings))?.id ?? 'custom',
+    [allPresets, currentSettings]
+  )
+  const activeCustomPreset = useMemo(
+    () => customPresets.find((preset) => preset.id === activePresetId) ?? null,
+    [customPresets, activePresetId]
+  )
+
+  function applySettings(settings: PresetSettings) {
+    setModel(settings.model)
+    setLanguage(settings.language)
+    setTargetWords(settings.targetWords)
+    setIgnorePrepositions(settings.ignorePrepositions)
+    setPreserveCommasPeriods(settings.preserveCommasPeriods)
+    setFormatMonetaryThousands(settings.formatMonetaryThousands)
+  }
+
+  function applyPreset(presetId: string) {
+    if (isTranscribing || presetId === 'custom') return
+    const preset = allPresets.find((item) => item.id === presetId)
+    if (!preset) return
+    applySettings(preset)
+    setPresetMessage(`Preset aplicado: ${preset.name}`)
+  }
+
+  function saveCurrentPreset() {
+    if (isTranscribing) return
+    const suggestedName = activeCustomPreset?.name ?? ''
+    const requested = window.prompt('Nome do preset', suggestedName)
+    const name = requested?.trim()
+    if (!name) return
+
+    if (BUILTIN_PRESETS.some((preset) => preset.name.toLowerCase() === name.toLowerCase())) {
+      window.alert('Esse nome pertence a um preset padrão. Escolha outro nome.')
+      return
+    }
+
+    setCustomPresets((current) => {
+      const existing = current.find((preset) => preset.name.toLowerCase() === name.toLowerCase())
+      const next = existing
+        ? current.map((preset) => preset.id === existing.id
+          ? { ...preset, ...currentSettings, name }
+          : preset)
+        : [...current, createCustomPreset(name, currentSettings)]
+      persistCustomPresets(next)
+      return next
+    })
+    setPresetMessage(`Preset salvo: ${name}`)
+  }
+
+  function deleteActivePreset() {
+    if (isTranscribing || !activeCustomPreset) return
+    if (!window.confirm(`Excluir o preset “${activeCustomPreset.name}”?`)) return
+
+    setCustomPresets((current) => {
+      const next = current.filter((preset) => preset.id !== activeCustomPreset.id)
+      persistCustomPresets(next)
+      return next
+    })
+    setPresetMessage(`Preset excluído: ${activeCustomPreset.name}`)
+  }
 
   function applySourceFile(nextFilePath: string) {
     setFilePath(nextFilePath)
@@ -335,7 +424,7 @@ function App() {
     <main className="shell">
       <section className="hero">
         <div className="hero-topline">
-          <span className="eyebrow">TRANSCRIÇÃO · 0.6 DEV</span>
+          <span className="eyebrow">TRANSCRIÇÃO · 0.7 DEV</span>
           <span className={`status-dot ${runtime.status}`}>{runtime.message}</span>
         </div>
         <h1>SRT Studio</h1>
@@ -370,6 +459,39 @@ function App() {
 
         <article className="card controls">
           <span className="label">2 · Transcrição e segmentação</span>
+
+          <div className="preset-row">
+            <label className="preset-selector">
+              Preset
+              <select
+                value={activePresetId}
+                onChange={(event) => applyPreset(event.target.value)}
+                disabled={isTranscribing}
+              >
+                <option value="custom">Configuração personalizada</option>
+                <optgroup label="Padrões">
+                  {BUILTIN_PRESETS.map((preset) => (
+                    <option value={preset.id} key={preset.id}>{preset.name}</option>
+                  ))}
+                </optgroup>
+                {customPresets.length > 0 && (
+                  <optgroup label="Meus presets">
+                    {customPresets.map((preset) => (
+                      <option value={preset.id} key={preset.id}>{preset.name}</option>
+                    ))}
+                  </optgroup>
+                )}
+              </select>
+            </label>
+            <div className="preset-actions">
+              <button className="ghost" onClick={saveCurrentPreset} disabled={isTranscribing}>Salvar atual</button>
+              {activeCustomPreset && (
+                <button className="ghost danger" onClick={deleteActivePreset} disabled={isTranscribing}>Excluir preset</button>
+              )}
+            </div>
+            {presetMessage && <small className="preset-message">{presetMessage}</small>}
+          </div>
+
           <div className="field-row three">
             <label>
               Modelo Whisper
@@ -458,7 +580,13 @@ function App() {
                 onClick={runTranscription}
                 disabled={!filePath || isTranscribing || runtime.status !== 'ready'}
               >
-                {isTranscribing ? 'Transcrevendo…' : transcription.status === 'success' ? 'Transcrever novamente' : 'Transcrever agora'}
+                {isTranscribing
+                  ? 'Transcrevendo…'
+                  : transcription.status === 'success'
+                    ? 'Transcrever novamente'
+                    : transcription.status === 'error'
+                      ? 'Tentar novamente'
+                      : 'Transcrever agora'}
               </button>
               {transcription.status === 'loading' && (
                 <button
@@ -501,6 +629,14 @@ function App() {
                   ? 'O carregamento do modelo não possui percentual artificial; o progresso numérico começa com a inferência.'
                   : 'Percentual calculado pela posição temporal já processada no áudio.'}
               </small>
+            </div>
+          )}
+
+          {transcription.status === 'error' && (
+            <div className="transcription-error" role="alert">
+              <strong>A transcrição não foi concluída.</strong>
+              <span>{transcription.message}</span>
+              <small>O arquivo e todas as configurações foram preservados. Use “Tentar novamente” ou reverifique o runtime.</small>
             </div>
           )}
 

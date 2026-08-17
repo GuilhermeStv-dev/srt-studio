@@ -98,8 +98,13 @@
 - [x] botão **Cancelar** encerra somente o processo Python da transcrição ativa
 - [x] cancelamento não gera captions/SRT parciais
 - [x] troca de arquivo e configurações bloqueada enquanto a transcrição está ativa
-- [ ] estados de retry mais completos
-- [ ] presets de configuração
+- [x] estado de erro preserva arquivo e configuração e oferece **Tentar novamente**
+- [x] erro de transcrição possui painel visual dedicado
+- [x] presets padrão `ES-PY · Dinâmico` e `ES-PY · Equilibrado`
+- [x] presets personalizados podem ser salvos e excluídos
+- [x] presets personalizados persistem localmente via `localStorage`
+- [x] preset inclui modelo, idioma, densidade e opções de segmentação/monetárias
+- [x] mudanças manuais saem automaticamente do preset e viram configuração personalizada
 
 ## Validação automatizada
 
@@ -138,6 +143,8 @@ Outras regressões relevantes:
 - [ ] validar barra/percentual em uma transcrição completa no Windows
 - [ ] cancelar uma transcrição durante a inferência e confirmar retorno limpo ao estado ocioso
 - [ ] confirmar que cancelamento não deixa processo Python órfão
+- [ ] salvar preset personalizado, reiniciar o app e confirmar persistência
+- [ ] provocar uma falha recuperável e validar **Tentar novamente** sem perder as escolhas
 - [ ] validar valores monetários em fala real
 - [ ] importar o SRT no Adobe Premiere
 - [ ] confirmar acentos, timestamps e sincronia no Premiere
@@ -145,13 +152,12 @@ Outras regressões relevantes:
 
 ## Próximas entregas
 
-1. validar segmentação inteligente + progresso/cancelamento no mesmo áudio real;
+1. validar segmentação inteligente + progresso/cancelamento + presets/retry no Windows;
 2. transformar novos exemplos reais em testes até fechar Fase 3;
 3. confirmar importação SRT no Premiere e fechar Fase 4;
-4. melhorar estados de erro/retry do desktop;
-5. completar runtime CUDA para desempenho;
-6. presets;
-7. instalador Windows.
+4. completar runtime CUDA para desempenho;
+5. começar refinamento UX/UI da Fase 6;
+6. instalador Windows.
 
 ## Preview visual
 

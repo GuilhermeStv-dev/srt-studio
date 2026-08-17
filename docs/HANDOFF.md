@@ -2,7 +2,7 @@
 
 ## Estado
 
-O SRT Studio tem a Fundação concluída. A **Fase 2 (transcrição)** já passou por teste real no Windows, incluindo fallback CPU e correção UTF-8. A **Fase 3 (segmentação ES-PY)** usa segmentação inteligente por alvo + cadência + coesão curta. A **Fase 4 (SRT Premiere-safe)** já exporta SRT no Windows e aguarda confirmação final de importação no Premiere. A **Fase 5 (desktop funcional)** já inclui drag-and-drop, preview completo e implementação de progresso/cancelamento aguardando validação real no Windows.
+O SRT Studio tem a Fundação concluída. A **Fase 2 (transcrição)** já passou por teste real no Windows, incluindo fallback CPU e correção UTF-8. A **Fase 3 (segmentação ES-PY)** usa segmentação inteligente por alvo + cadência + coesão curta. A **Fase 4 (SRT Premiere-safe)** já exporta SRT no Windows e aguarda confirmação final de importação no Premiere. A **Fase 5 (desktop funcional)** já inclui drag-and-drop, preview completo, progresso/cancelamento, presets locais e retry; os últimos itens aguardam validação real no Windows.
 
 Repositório: `GuilhermeStv-dev/srt-studio`, branch estável `main`. Mudanças devem seguir branch + PR.
 
@@ -113,6 +113,19 @@ Esses exemplos vieram de validação real do usuário e estão cobertos por test
 - arquivo/configurações ficam bloqueados durante a execução para evitar estado ambíguo;
 - não gerar/exportar resultado parcial após cancelamento.
 
+### Presets e retry
+
+- `apps/desktop/src/renderer/presets.ts` concentra apenas lógica de preferência de UI; não mover presets para o engine;
+- presets padrão: `ES-PY · Dinâmico` (densidade 1) e `ES-PY · Equilibrado` (densidade 2);
+- preset inclui modelo, idioma, densidade, `ignorePrepositions`, `preserveCommasPeriods` e `formatMonetaryThousands`;
+- presets personalizados persistem somente em `localStorage` (`srt-studio.presets.v1`), mantendo o MVP offline;
+- `Salvar atual` cria um preset ou atualiza outro personalizado com o mesmo nome;
+- presets padrão não podem ser apagados; personalizados podem;
+- ao alterar manualmente qualquer opção, a UI passa a mostrar `Configuração personalizada` se não houver correspondência exata;
+- erro de transcrição preserva arquivo e configurações;
+- após erro, a ação principal vira **Tentar novamente** e o painel explica que nada foi perdido;
+- retry chama o mesmo pipeline normal; não criar um segundo fluxo especial no engine.
+
 ## Setup Windows
 
 Preferir:
@@ -127,10 +140,10 @@ npm run dev
 No Windows:
 
 1. dar `git pull` e abrir `npm run dev`;
-2. repetir o áudio ES-PY usado na calibração e validar as novas fronteiras inteligentes;
-3. observar a barra: indeterminada ao carregar o modelo e percentual durante a inferência;
-4. concluir uma transcrição e confirmar que o preview/exportação continuam normais;
-5. iniciar outra transcrição e clicar **Cancelar** durante a inferência;
-6. confirmar que a UI volta ao estado ocioso, não exibe captions parciais e permite transcrever novamente;
+2. repetir o áudio ES-PY usado na calibração e validar as fronteiras inteligentes;
+3. observar a barra e testar cancelamento durante inferência;
+4. selecionar `ES-PY · Dinâmico`, alterar uma opção e confirmar que vira configuração personalizada;
+5. salvar um preset próprio, fechar/reabrir o app e confirmar persistência;
+6. provocar uma falha recuperável e confirmar que **Tentar novamente** preserva arquivo/configuração;
 7. importar um SRT exportado no Adobe Premiere para fechar Fase 4;
 8. novos cortes artificiais devem virar fixtures/testes antes de ajustar o segmentador.
