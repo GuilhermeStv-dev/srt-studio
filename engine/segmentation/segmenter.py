@@ -148,11 +148,17 @@ def _gap(left: WordToken, right: WordToken) -> float:
     return max(0.0, right.start - left.end)
 
 
-def _pair_cohesion(left: WordToken, right: WordToken) -> float:
+def _pair_cohesion(
+    left: WordToken,
+    right: WordToken,
+    config: SegmentationConfig,
+) -> float:
     """Retorna um score curto de coesão lexical entre palavras adjacentes.
 
     O score serve apenas para evitar cortes evidentemente ruins, como `qué` / `tal`,
     e para permitir pares curtos no modo de 1 palavra. Uma pausa forte sempre vence.
+    Coesão baseada em preposição só é aplicada quando o usuário escolheu ignorar
+    preposições na contagem; desligar a opção volta a tratá-las como palavras normais.
     """
 
     left_text = _lexical(left.text)
@@ -163,10 +169,10 @@ def _pair_cohesion(left: WordToken, right: WordToken) -> float:
         score += 5.0
     if left_text in _ARTICLES:
         score += 3.0
-    if right_text in _PREPOSITIONS:
+    if config.ignore_prepositions and right_text in _PREPOSITIONS:
         # Ex.: `participar en`.
         score += 2.8
-    if left_text in _PREPOSITIONS:
+    if config.ignore_prepositions and left_text in _PREPOSITIONS:
         # Ex.: `para vos`.
         score += 2.5
     if right_text in _CLITICS:
@@ -186,13 +192,16 @@ def _count_target_words(words: Sequence[WordToken], config: SegmentationConfig) 
 
 
 def _pause_thresholds(words: Sequence[WordToken]) -> tuple[float, float]:
-    """Calcula limiares adaptativos de pausa a partir do ritmo do próprio trecho."""
+    """Calcula limiares adaptativos sem deixar pausas longas contaminarem a base."""
 
     if len(words) < 2:
         return 0.32, 0.16
 
     gaps = [_gap(left, right) for left, right in zip(words, words[1:])]
-    median_gap = statistics.median(gaps)
+    # Pausas já claramente longas não devem elevar o próprio limiar que deveria
+    # detectá-las. A base rítmica usa somente gaps curtos/usuais do trecho.
+    cadence_gaps = [gap for gap in gaps if gap <= 0.25]
+    median_gap = statistics.median(cadence_gaps) if cadence_gaps else 0.08
     hard_pause = max(0.32, median_gap * 3.0)
     soft_pause = max(0.16, median_gap * 1.8)
     return hard_pause, soft_pause
@@ -252,7 +261,7 @@ def _candidate_cost(
         if gap >= hard_pause:
             return math.inf
 
-        cost -= _pair_cohesion(left, right)
+        cost -= _pair_cohesion(left, right, config)
         if gap <= 0.06:
             cost -= 0.7
         elif gap <= soft_pause:
@@ -265,7 +274,7 @@ def _candidate_cost(
         left = words[end - 1]
         right = words[end]
         gap = _gap(left, right)
-        cohesion = _pair_cohesion(left, right)
+        cohesion = _pair_cohesion(left, right, config)
 
         if gap >= hard_pause:
             cost -= 5.0
@@ -282,9 +291,13 @@ def _candidate_cost(
         elif _SOFT_PUNCTUATION.search(left.text.strip()):
             cost -= 0.8
 
-    # Terminar em preposição é levemente desencorajado, mas não proibido:
-    # `participar en` pode vencer quando cadência/coerência indicarem esse corte.
-    if end < len(words) and _lexical(group[-1].text) in _PREPOSITIONS:
+    # Terminar em preposição é levemente desencorajado somente quando preposições
+    # participam do modo inteligente. Com a opção desligada, elas são palavras comuns.
+    if (
+        config.ignore_prepositions
+        and end < len(words)
+        and _lexical(group[-1].text) in _PREPOSITIONS
+    ):
         cost += 0.2
 
     return cost
@@ -348,7 +361,8 @@ def segment_words(
     `qué tal` pode ficar junto, mas uma frase de três palavras não é preservada só
     por fazer sentido semanticamente. Pausas fortes sempre vencem a coesão.
 
-    Com `ignore_prepositions=True`, preposições não consomem uma vaga. Tokens
+    Com `ignore_prepositions=True`, preposições não consomem uma vaga e entram no
+    score de coesão. Com a opção desligada, voltam a ser palavras normais. Tokens
     `kind="monetary"` continuam sempre isolados. `preserve_commas_periods`
     controla apenas vírgulas/pontos; ¿ ? ¡ ! são sempre preservados.
     """
