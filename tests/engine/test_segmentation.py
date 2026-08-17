@@ -1,6 +1,7 @@
 import unittest
 
 from engine.models import WordToken
+from engine.normalization import normalize_monetary_tokens
 from engine.segmentation import SegmentationConfig, segment_words
 
 
@@ -12,84 +13,136 @@ class SegmentationTests(unittest.TestCase):
     def test_empty_input(self) -> None:
         self.assertEqual(segment_words([]), ())
 
-    def test_preserves_question_boundary(self) -> None:
+    def test_one_word_per_caption(self) -> None:
         result = segment_words(
             words(
-                ("¿Querés", 0.00, 0.35),
-                ("jugar?", 0.37, 0.72),
-                ("Tenemos", 1.45, 1.80),
-                ("premios", 1.82, 2.20),
-            )
-        )
-        self.assertEqual(result[0].text, "¿Querés jugar?")
-        self.assertEqual(result[1].text, "Tenemos premios")
-
-    def test_does_not_leave_preposition_at_end(self) -> None:
-        result = segment_words(
-            words(
-                ("Depositá", 0.00, 0.30),
-                ("ahora", 0.31, 0.58),
-                ("en", 0.59, 0.68),
-                ("NuevaBet", 0.69, 1.10),
+                ("Hola", 0.00, 0.20),
+                ("mundo", 0.21, 0.50),
+                ("ahora", 0.51, 0.80),
             ),
-            SegmentationConfig(target_chars=12, hard_max_chars=22),
+            SegmentationConfig(target_words=1, ignore_prepositions=False),
         )
-        self.assertFalse(any(cue.text.endswith(" en") for cue in result[:-1]))
+        self.assertEqual([cue.text for cue in result], ["Hola", "mundo", "ahora"])
 
-    def test_does_not_isolate_article(self) -> None:
+    def test_two_words_per_caption(self) -> None:
         result = segment_words(
             words(
-                ("Mirá", 0.00, 0.24),
-                ("todos", 0.25, 0.51),
-                ("los", 0.52, 0.64),
-                ("premios", 0.65, 0.98),
-                ("disponibles", 0.99, 1.42),
+                ("uno", 0.00, 0.20),
+                ("dos", 0.21, 0.40),
+                ("tres", 0.41, 0.60),
+                ("cuatro", 0.61, 0.80),
             ),
-            SegmentationConfig(target_chars=12, hard_max_chars=24),
+            SegmentationConfig(target_words=2, ignore_prepositions=False),
         )
-        self.assertFalse(any(cue.text.lower() == "los" for cue in result))
+        self.assertEqual([cue.text for cue in result], ["uno dos", "tres cuatro"])
 
-    def test_strong_pause_is_preferred_as_boundary(self) -> None:
+    def test_three_words_per_caption(self) -> None:
         result = segment_words(
             words(
-                ("Hola", 0.00, 0.25),
-                ("amigos", 0.26, 0.55),
-                ("hoy", 1.40, 1.62),
-                ("jugamos", 1.63, 2.00),
-            )
-        )
-        self.assertEqual([cue.text for cue in result], ["Hola amigos", "hoy jugamos"])
-
-    def test_long_single_word_is_allowed(self) -> None:
-        result = segment_words(words(("responsablemente", 0.0, 0.8)))
-        self.assertEqual(len(result), 1)
-        self.assertEqual(result[0].text, "responsablemente")
-
-    def test_prefers_two_or_more_words_when_fit_is_reasonable(self) -> None:
-        result = segment_words(
-            words(
-                ("Depositá", 0.00, 0.30),
-                ("50.000", 0.31, 0.55),
-                ("y", 0.56, 0.62),
-                ("jugá", 0.63, 0.82),
-                ("con", 0.83, 0.94),
-                ("100.000", 0.95, 1.22),
+                ("uno", 0.00, 0.10),
+                ("dos", 0.11, 0.20),
+                ("tres", 0.21, 0.30),
+                ("cuatro", 0.31, 0.40),
             ),
-            SegmentationConfig(target_chars=12, hard_max_chars=24),
+            SegmentationConfig(target_words=3, ignore_prepositions=False),
         )
-        self.assertEqual([cue.text for cue in result], ["Depositá 50.000", "y jugá con 100.000"])
-        self.assertTrue(all(len(cue.text.split()) >= 2 for cue in result))
+        self.assertEqual([cue.text for cue in result], ["uno dos tres", "cuatro"])
 
-    def test_removes_final_period_but_keeps_question_mark(self) -> None:
+    def test_four_words_per_caption(self) -> None:
         result = segment_words(
             words(
-                ("Hola", 0.0, 0.2),
-                ("mundo.", 0.21, 0.5),
-                ("¿Vamos?", 0.9, 1.2),
-            )
+                ("uno", 0.00, 0.10),
+                ("dos", 0.11, 0.20),
+                ("tres", 0.21, 0.30),
+                ("cuatro", 0.31, 0.40),
+                ("cinco", 0.41, 0.50),
+            ),
+            SegmentationConfig(target_words=4, ignore_prepositions=False),
         )
-        self.assertFalse(result[0].text.endswith("."))
-        self.assertTrue(result[-1].text.endswith("?"))
+        self.assertEqual([cue.text for cue in result], ["uno dos tres cuatro", "cinco"])
+
+    def test_preposition_can_be_ignored_in_count(self) -> None:
+        result = segment_words(
+            words(
+                ("para", 0.00, 0.18),
+                ("vos", 0.19, 0.40),
+                ("ahora", 0.41, 0.70),
+            ),
+            SegmentationConfig(target_words=1, ignore_prepositions=True),
+        )
+        self.assertEqual([cue.text for cue in result], ["para vos", "ahora"])
+
+    def test_preposition_counts_when_option_is_disabled(self) -> None:
+        result = segment_words(
+            words(
+                ("para", 0.00, 0.18),
+                ("vos", 0.19, 0.40),
+            ),
+            SegmentationConfig(target_words=1, ignore_prepositions=False),
+        )
+        self.assertEqual([cue.text for cue in result], ["para", "vos"])
+
+    def test_preserves_punctuation_when_enabled(self) -> None:
+        result = segment_words(
+            words(
+                ("¿Hola,", 0.00, 0.30),
+                ("qué?", 0.31, 0.55),
+            ),
+            SegmentationConfig(target_words=2, preserve_punctuation=True),
+        )
+        self.assertEqual(result[0].text, "¿Hola, qué?")
+
+    def test_removes_edge_punctuation_when_disabled(self) -> None:
+        result = segment_words(
+            words(
+                ("¿Hola,", 0.00, 0.30),
+                ("qué?", 0.31, 0.55),
+            ),
+            SegmentationConfig(target_words=2, preserve_punctuation=False),
+        )
+        self.assertEqual(result[0].text, "Hola qué")
+
+    def test_punctuation_option_does_not_damage_numeric_separators(self) -> None:
+        result = segment_words(
+            words(("50.000", 0.00, 0.30)),
+            SegmentationConfig(target_words=1, preserve_punctuation=False),
+        )
+        self.assertEqual(result[0].text, "50.000")
+
+    def test_monetary_value_is_always_isolated_even_after_preposition(self) -> None:
+        normalized = normalize_monetary_tokens(
+            words(
+                ("con", 0.00, 0.15),
+                ("50.000", 0.16, 0.45),
+                ("guaraníes", 0.46, 0.75),
+                ("ahora", 0.76, 1.00),
+            ),
+            format_thousands=True,
+        )
+        result = segment_words(
+            normalized,
+            SegmentationConfig(target_words=1, ignore_prepositions=True),
+        )
+        self.assertEqual([cue.text for cue in result], ["con", "50 mil", "ahora"])
+
+    def test_monetary_value_isolated_with_formatting_disabled(self) -> None:
+        normalized = normalize_monetary_tokens(
+            words(
+                ("con", 0.00, 0.15),
+                ("50.000", 0.16, 0.45),
+                ("guaraníes", 0.46, 0.75),
+                ("ahora", 0.76, 1.00),
+            ),
+            format_thousands=False,
+        )
+        result = segment_words(
+            normalized,
+            SegmentationConfig(target_words=4, ignore_prepositions=True),
+        )
+        self.assertEqual(
+            [cue.text for cue in result],
+            ["con", "50.000 guaraníes", "ahora"],
+        )
 
     def test_cues_are_positive_and_non_overlapping(self) -> None:
         result = segment_words(
@@ -98,7 +151,8 @@ class SegmentationTests(unittest.TestCase):
                 ("dos", 0.35, 0.70),
                 ("tres", 0.72, 1.00),
                 ("cuatro", 1.02, 1.35),
-            )
+            ),
+            SegmentationConfig(target_words=2, ignore_prepositions=False),
         )
         for cue in result:
             self.assertGreater(cue.end, cue.start)
