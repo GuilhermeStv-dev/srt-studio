@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import ctypes
 import math
+import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable
 
 from engine.models import WordToken
 
@@ -16,11 +18,15 @@ class TranscriptionUnavailableError(TranscriptionError):
     """Dependências opcionais de transcrição não estão disponíveis."""
 
 
+_WINDOWS_CUDA_DLLS = ("cublas64_12.dll", "cudnn_ops64_9.dll")
+
+
 @dataclass(frozen=True, slots=True)
 class RuntimeSelection:
     device: str
     compute_type: str
     cuda_devices: int
+    warning: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -35,6 +41,7 @@ class TranscriptionResult:
     device: str
     compute_type: str
     words: tuple[WordToken, ...]
+    runtime_warning: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -45,7 +52,36 @@ class TranscriptionResult:
             "device": self.device,
             "compute_type": self.compute_type,
             "words": [word.to_dict() for word in self.words],
+            "runtime_warning": self.runtime_warning,
         }
+
+
+def find_missing_windows_cuda_libraries(
+    *,
+    platform_name: str | None = None,
+    loader: Callable[[str], Any] | None = None,
+) -> tuple[str, ...]:
+    """Retorna DLLs NVIDIA essenciais que o processo Windows não consegue carregar.
+
+    A GPU pode estar visível ao driver mesmo quando o CUDA Toolkit/cuDNN não está
+    instalado no PATH. Esse é o caso que causava um traceback somente ao iniciar
+    a inferência (`cublas64_12.dll is not found`).
+    """
+
+    platform_value = platform_name or sys.platform
+    if platform_value != "win32":
+        return ()
+
+    if loader is None:
+        loader = getattr(ctypes, "WinDLL")
+
+    missing: list[str] = []
+    for library in _WINDOWS_CUDA_DLLS:
+        try:
+            loader(library)
+        except OSError:
+            missing.append(library)
+    return tuple(missing)
 
 
 def select_runtime(
@@ -95,14 +131,42 @@ def detect_runtime(requested_device: str = "auto") -> RuntimeSelection:
             "Instale com: pip install -e .[transcription]"
         ) from exc
 
+    requested = requested_device.lower().strip()
     cuda_devices = int(ctranslate2.get_cuda_device_count())
-    cuda_types: set[str] = set()
     cpu_types = set(ctranslate2.get_supported_compute_types("cpu"))
 
+    if cuda_devices > 0 and requested != "cpu":
+        missing = find_missing_windows_cuda_libraries()
+        if missing:
+            missing_text = ", ".join(missing)
+            message = (
+                f"GPU NVIDIA detectada, mas faltam bibliotecas CUDA no PATH: {missing_text}. "
+                "Instale CUDA Toolkit 12.x + cuDNN 9 para CUDA 12 e reabra o aplicativo."
+            )
+            if requested == "cuda":
+                raise TranscriptionUnavailableError(message)
+
+            cpu_runtime = select_runtime(
+                cuda_devices=cuda_devices,
+                cpu_compute_types=cpu_types,
+                requested_device="cpu",
+            )
+            return RuntimeSelection(
+                device=cpu_runtime.device,
+                compute_type=cpu_runtime.compute_type,
+                cuda_devices=cuda_devices,
+                warning=message,
+            )
+
+    cuda_types: set[str] = set()
     if cuda_devices > 0:
         try:
             cuda_types = set(ctranslate2.get_supported_compute_types("cuda"))
-        except RuntimeError:
+        except RuntimeError as exc:
+            if requested == "cuda":
+                raise TranscriptionUnavailableError(
+                    f"CUDA está visível, mas o runtime não pôde ser inicializado: {exc}"
+                ) from exc
             cuda_types = set()
 
     return select_runtime(
@@ -173,19 +237,29 @@ def transcribe_file(
             "faster-whisper não está instalado. Instale com: pip install -e .[transcription]"
         ) from exc
 
-    model = WhisperModel(
-        model_name,
-        device=runtime.device,
-        compute_type=runtime.compute_type,
-    )
-    segments, info = model.transcribe(
-        str(path),
-        language=language,
-        word_timestamps=True,
-        vad_filter=vad_filter,
-    )
+    try:
+        model = WhisperModel(
+            model_name,
+            device=runtime.device,
+            compute_type=runtime.compute_type,
+        )
+        segments, info = model.transcribe(
+            str(path),
+            language=language,
+            word_timestamps=True,
+            vad_filter=vad_filter,
+        )
+        segment_list = list(segments)
+    except RuntimeError as exc:
+        text = str(exc)
+        if any(name.lower() in text.lower() for name in _WINDOWS_CUDA_DLLS):
+            raise TranscriptionUnavailableError(
+                "A inferência CUDA não pôde iniciar porque uma biblioteca NVIDIA está ausente. "
+                f"Detalhe: {text}. Instale CUDA Toolkit 12.x + cuDNN 9 para CUDA 12, "
+                "reabra o aplicativo e use 'Reverificar runtime'."
+            ) from exc
+        raise TranscriptionError(f"Falha no runtime de transcrição: {text}") from exc
 
-    segment_list = list(segments)
     words = collect_word_tokens(segment_list)
 
     if not words:
@@ -206,4 +280,5 @@ def transcribe_file(
         device=runtime.device,
         compute_type=runtime.compute_type,
         words=words,
+        runtime_warning=runtime.warning,
     )
