@@ -2,6 +2,7 @@ import unittest
 
 from engine.models import WordToken
 from engine.normalization import (
+    merge_fragmented_currency_numbers,
     normalize_monetary_tokens,
     normalize_whitespace,
     remove_final_period,
@@ -67,6 +68,40 @@ class NormalizationTests(unittest.TestCase):
         )
         self.assertEqual([token.text for token in result], ["200 mil guaraníes"])
         self.assertEqual(result[0].kind, "monetary")
+
+    def test_merges_fragmented_grouped_currency_number_before_formatting(self):
+        repaired = merge_fragmented_currency_numbers(
+            tokens(
+                ("100", 0.00, 0.20),
+                (".000", 0.20, 0.45),
+                ("guaraníes", 0.45, 0.80),
+            )
+        )
+        result = normalize_monetary_tokens(repaired, format_thousands=True)
+        self.assertEqual([token.text for token in result], ["100 mil"])
+        self.assertEqual(result[0].kind, "monetary")
+
+    def test_merges_fragmented_grouped_currency_number_without_forcing_mil_format(self):
+        repaired = merge_fragmented_currency_numbers(
+            tokens(
+                ("100", 0.00, 0.20),
+                (".000", 0.20, 0.45),
+                ("guaraníes", 0.45, 0.80),
+            )
+        )
+        result = normalize_monetary_tokens(repaired, format_thousands=False)
+        self.assertEqual([token.text for token in result], ["100.000 guaraníes"])
+        self.assertEqual(result[0].kind, "monetary")
+
+    def test_does_not_merge_fragmented_grouped_number_without_currency_marker(self):
+        repaired = merge_fragmented_currency_numbers(
+            tokens(
+                ("100", 0.00, 0.20),
+                (".000", 0.20, 0.45),
+                ("habitantes", 0.45, 0.80),
+            )
+        )
+        self.assertEqual([token.text for token in repaired], ["100", ".000", "habitantes"])
 
     def test_financial_context_can_identify_grouped_value(self):
         result = normalize_monetary_tokens(
