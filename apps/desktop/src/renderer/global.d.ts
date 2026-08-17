@@ -38,6 +38,16 @@ type TranscriptionResult = {
   segmentation: SegmentationSettings
 }
 
+type SrtExportResult =
+  | { canceled: true }
+  | {
+      canceled: false
+      ok: true
+      path: string
+      cue_count: number
+      byte_count: number
+    }
+
 declare global {
   interface Window {
     srtStudio: {
@@ -53,6 +63,10 @@ declare global {
         preservePunctuation: boolean
         formatMonetaryThousands: boolean
       }): Promise<TranscriptionResult>
+      exportSrt(input: {
+        sourceFilePath: string
+        captions: CaptionPreview[]
+      }): Promise<SrtExportResult>
     }
   }
 }
