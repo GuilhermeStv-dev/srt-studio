@@ -37,5 +37,6 @@ temp/
 Thumbs.db
 
 # Build artifacts
+build/
 release/
 coverage/
