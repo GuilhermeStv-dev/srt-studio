@@ -4,7 +4,7 @@
 
 ## Missão
 
-Construir um aplicativo desktop Windows local para transformar áudio/vídeo em **SRT confiável e rápido para edição no Adobe Premiere**, com transcrição local, segmentação inteligente ES-PY e exportação Premiere-safe.
+Construir um aplicativo desktop Windows local para transformar áudio/vídeo em **SRT confiável e rápido para edição no Adobe Premiere**, com transcrição local, segmentação previsível ES-PY e exportação Premiere-safe.
 
 ## Fonte de verdade e ordem obrigatória de leitura
 
@@ -24,10 +24,10 @@ O **GitHub é a fonte de verdade técnica**. O Notion é um painel visual/espelh
 ## Estado atual resumido
 
 - Fundação: concluída.
-- Fase 2 — transcrição: implementada em código; validação real ES-PY/CUDA ainda pendente.
-- Fase 3 — segmentação ES-PY: primeira versão implementada e testada; precisa calibração com áudio real.
+- Fase 2 — transcrição: pipeline real já validado no Windows; CUDA ainda pode usar fallback CPU enquanto o runtime NVIDIA não estiver completo.
+- Fase 3 — segmentação ES-PY: abordagem atual usa quantidade explícita de palavras e opções de preposição/pontuação/moeda.
 - Preview Electron: validado no Windows.
-- O fluxo atual já chega a `WordToken[] -> CaptionCue[]` e mostra captions no desktop.
+- O fluxo atual chega a `WordToken[] -> normalização -> CaptionCue[]` e mostra captions no desktop.
 
 **Não reimplemente etapas já concluídas.** Consulte `docs/STATUS.md` antes de assumir que algo falta.
 
@@ -47,10 +47,13 @@ A UI configura, dispara operações e exibe resultados. **Regras de transcriçã
 - Não adicionar backend, conta, assinatura, telemetria ou API paga ao MVP.
 - Não sobrescrever mídia ou SRT original silenciosamente.
 - Não gerar cue vazio, duração zero, overlap ou timestamp regressivo.
-- Aproximadamente 12 caracteres é preferência de segmentação, não limite cego.
-- Preservar a naturalidade de ES-PY e evitar conectores/preposições/artigos isolados quando houver alternativa melhor.
-- Preservar `?`, `!` e vírgulas contextualmente úteis; ponto final é removível pelo preset.
-- Proteger números/unidades semanticamente ligadas.
+- O controle principal de segmentação é **1, 2, 3 ou 4 palavras por caption**; a antiga abordagem de ~12 caracteres foi superada.
+- A opção **ignorar preposições na contagem** permite que a preposição permaneça com outra palavra sem consumir uma vaga, exceto quando a regra monetária exigir separação.
+- Captions de uma única palavra são válidas.
+- O usuário pode manter ou remover pontuação; a remoção não pode destruir separadores internos de números.
+- **Valores monetários reconhecidos são sempre captions isoladas.** Ex.: `con 50 mil` deve virar `con` / `50 mil`, independentemente do alvo e da opção de preposição.
+- Quando a opção monetária `N mil` estiver ligada, `₲200.000`, `200.000 guaraníes`, `200 mil guaraníes` ou `doscientos mil guaraníes` podem virar `200 mil`; nunca `200 mil guaraníes`.
+- Normalização monetária não pode alterar números comuns sem evidência de moeda/contexto financeiro.
 - Toda correção linguística importante deve incluir teste de regressão.
 - Não adicionar dependência pesada sem justificativa explícita.
 - Não commitar modelos, mídia de cliente, outputs, segredos, `.venv` ou caches.
@@ -112,4 +115,4 @@ Pare e peça decisão do usuário se a tarefa exigir qualquer uma destas mudanç
 
 ## Próximo checkpoint autorizado
 
-Validar transcrição real ES-PY no Windows usando `.venv`/`faster-whisper`, revisar as captions geradas e transformar cortes ruins em testes de regressão. Depois, implementar **exportação SRT pela interface** conforme `docs/ROADMAP.md`.
+Validar no Windows a nova segmentação por palavras usando o mesmo áudio real ES-PY, incluindo preposições, pontuação e valores monetários. Depois, implementar **exportação SRT pela interface** conforme `docs/ROADMAP.md`.
