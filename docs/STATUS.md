@@ -7,159 +7,116 @@
 **2. Motor de transcrição — concluído funcionalmente**  
 **3. Segmentação ES-PY — segmentação inteligente em validação real**  
 **4. SRT Premiere-safe — exportação validada no Windows, aguardando importação no Premiere**  
-**5. Desktop funcional — em andamento**
+**5. Desktop funcional — implementação principal concluída, validações reais pendentes**  
+**6. UX/UI — em refinamento**  
+**7. Calibração e regressão — iniciada**
 
 ## Fundação concluída
 
 - [x] Repositório GitHub e estrutura inicial
-- [x] Workspace Node para o desktop
-- [x] Electron + React + TypeScript configurados
-- [x] Preview Electron validado no Windows
+- [x] Electron + React + TypeScript
 - [x] Engine Python separado
-- [x] Modelos `WordToken` e `CaptionCue`
-- [x] Normalização textual básica
-- [x] Validador e renderer SRT básicos
-- [x] IPC Electron → Python
-- [x] CI inicial
+- [x] IPC Electron ↔ Python
+- [x] CI engine + desktop
+- [x] Bootstrap Windows
 - [x] Documentação de arquitetura/handoff
 
-## Transcrição implementada e validada
+## Transcrição
 
-- [x] Adapter isolado para `faster-whisper`
-- [x] Runtime CUDA/CPU selecionado via CTranslate2
-- [x] Preferência CUDA `int8_float16`; fallback CPU `int8`
-- [x] CLI `runtime`
-- [x] CLI `transcribe`
+- [x] `faster-whisper` local
 - [x] `word_timestamps=True`
-- [x] VAD habilitado por padrão
-- [x] Conversão para `WordToken[]`
-- [x] Rejeição de timestamps inválidos/regressivos
-- [x] Electron prefere automaticamente `.venv\Scripts\python.exe`
-- [x] Setup Windows idempotente em `scripts/bootstrap.ps1`
-- [x] Pipeline completo testado com áudio ES-PY real no Windows
-- [x] UTF-8 forçado no pipe Python → Electron para preservar `¿`, `¡` e acentos
-- [x] fallback CPU validado quando CUDA/cuDNN não estão completos
+- [x] VAD por padrão
+- [x] runtime CUDA/CPU via CTranslate2
+- [x] fallback CPU validado no Windows
+- [x] UTF-8 preservando `¿`, `¡` e acentos
+- [x] progresso real durante inferência
+- [x] cancelamento do subprocesso ativo
+- [ ] concluir CUDA/cuDNN para inferência GPU na RTX
 
-## Segmentação ES-PY — abordagem atual
+## Segmentação ES-PY — D-012
 
-- [x] `WordToken[] -> CaptionCue[]`
-- [x] alvo configurável de `1`, `2`, `3` ou `4` palavras por caption
-- [x] alvo tratado como preferência forte, não corte mecânico
-- [x] escolha global de fronteiras por programação dinâmica
-- [x] cadência baseada nos gaps reais entre timestamps das palavras
-- [x] limiares de pausa adaptados ao ritmo do próprio trecho
-- [x] coesão curta para evitar cortes ruins como `qué` / `tal`
-- [x] expansão inteligente curta: alvo 1 pode formar pares, mas não frases longas
-- [x] pausa forte vence coesão e força fronteira
-- [x] opção para ignorar preposições na contagem
-- [x] preposição pode se ligar ao lado mais natural, ex. `participar en`
-- [x] captions de uma palavra permitidas
-- [x] opção **Manter vírgulas e pontos** controla somente `,` e `.` nas bordas
-- [x] `¿`, `?`, `¡` e `!` são sempre preservados
-- [x] remoção de `,`/`.` não danifica `50.000` / `1,5`
-- [x] normalização monetária conservadora
-- [x] opção `Valores monetários no formato “mil”`
-- [x] `200 mil guaraníes` → `200 mil` quando a opção está ligada
-- [x] valores monetários reconhecidos são SEMPRE captions isoladas
-- [x] `con 50 mil` → `con` / `50 mil`, independentemente da regra de preposição/cadência
-- [x] números não monetários como `50.000 habitantes` permanecem intactos
-- [x] cues com duração positiva e sem overlap
-- [x] preview de captions conectado ao resultado da transcrição
+- [x] alvo configurável de `1`, `2`, `3` ou `4` palavras
+- [x] alvo é preferência forte, não corte mecânico
+- [x] fronteiras escolhidas por programação dinâmica
+- [x] cadência baseada em gaps de timestamps
+- [x] coesão curta para pares como `¿qué tal?`
+- [x] pausa forte vence coesão
+- [x] preposições podem ser ignoradas na contagem
+- [x] `¿`, `?`, `¡`, `!` sempre preservados
+- [x] opção controla somente vírgulas e pontos
+- [x] valores monetários reconhecidos são sempre isolados
+- [x] normalização opcional `N mil`
+- [x] cues positivos, sem overlap e sem regressão
+- [ ] continuar calibrando com novos trechos reais ES-PY
 
-## SRT Premiere-safe — implementação atual
+## Calibração e regressão
 
-- [x] renderer SRT com timestamps SubRip
-- [x] validação final de cue vazio/duração zero/overlap/regressão
-- [x] exportação UTF-8 sem BOM
-- [x] quebra de linha CRLF
-- [x] CLI `export-srt` recebendo captions via stdin
-- [x] botão **Exportar SRT** no desktop
-- [x] `Save As` sugerindo o nome da mídia com `.srt`
-- [x] sobrescrita bloqueada por padrão
-- [x] substituição exige confirmação explícita
-- [x] exportação usa todas as captions
-- [x] exportação SRT testada com sucesso no Windows
-- [ ] importação final no Adobe Premiere ainda precisa ser confirmada
+- [x] runner genérico em `tests/engine/test_segmentation_fixtures.py`
+- [x] fixtures JSON em `tests/fixtures/segmentation/`
+- [x] trecho real usado na D-012 convertido em fixture
+- [x] pausa forte vencendo coesão como fixture
+- [x] isolamento monetário como fixture
+- [x] fluxo documentado em `docs/CALIBRATION.md`
+- [ ] ampliar corpus com fala rápida, pausas variadas, perguntas, moeda e novos cortes editoriais reais
+- [ ] adicionar métricas de tempo/hardware em etapa posterior
 
-## Desktop funcional — implementação atual
+Cada novo corte considerado ruim deve virar uma fixture mínima antes de alterar pesos ou heurísticas. Não commitar mídia de cliente; usar apenas os `WordToken`s/timestamps necessários.
 
-- [x] seleção de mídia pelo diálogo nativo
-- [x] drag-and-drop de áudio/vídeo no cartão de origem
-- [x] caminho de arquivo arrastado obtido no preload via `webUtils.getPathForFile`
-- [x] prevenção de abertura/navegação acidental ao soltar arquivo na janela
-- [x] feedback visual durante drag-and-drop
-- [x] preview rolável com todas as captions da transcrição
-- [x] amostra técnica de WordTokens/timestamps mantida separadamente
-- [x] progresso por estágios: preparação, carregamento do modelo, inferência e finalização
-- [x] percentual real durante inferência calculado por `segment.end / duração`
-- [x] carregamento do modelo usa estado indeterminado, sem percentual inventado
-- [x] progresso fica em no máximo 99% até o pipeline terminar
-- [x] uma única transcrição ativa por vez
-- [x] botão **Cancelar** encerra somente o processo Python da transcrição ativa
-- [x] cancelamento não gera captions/SRT parciais
-- [x] troca de arquivo e configurações bloqueada enquanto a transcrição está ativa
-- [x] estado de erro preserva arquivo e configuração e oferece **Tentar novamente**
-- [x] erro de transcrição possui painel visual dedicado
-- [x] presets padrão `ES-PY · Dinâmico` e `ES-PY · Equilibrado`
-- [x] presets personalizados podem ser salvos e excluídos
-- [x] presets personalizados persistem localmente via `localStorage`
-- [x] preset inclui modelo, idioma, densidade e opções de segmentação/monetárias
-- [x] mudanças manuais saem automaticamente do preset e viram configuração personalizada
+## SRT Premiere-safe
+
+- [x] renderer e validação final
+- [x] UTF-8 sem BOM
+- [x] CRLF
+- [x] exportação pela interface
+- [x] `Save As`
+- [x] confirmação explícita de sobrescrita
+- [x] exportação real validada no Windows
+- [ ] importar SRT no Adobe Premiere e confirmar acentos, timestamps, sincronia e quantidade de captions
+
+## Desktop funcional
+
+- [x] seleção e drag-and-drop de mídia
+- [x] preview completo e rolável
+- [x] progresso e cancelamento
+- [x] retry sem perder arquivo/configuração
+- [x] presets padrão e personalizados persistidos localmente
+- [x] fluxo selecionar → transcrever → revisar → exportar
+- [ ] validar cancelamento, retry e persistência dos presets em uso prolongado no Windows
+
+## UX/UI
+
+- [x] layout desktop em duas colunas para origem + configuração
+- [x] preview em largura total
+- [x] redução de ruído visual
+- [x] detalhes de runtime/engine ocultos quando saudáveis
+- [x] WordTokens/timestamps brutos removidos da experiência normal
+- [x] explicações técnicas de progresso removidas da experiência normal
+- [ ] remover os últimos sinais de build/dev da versão final
+- [ ] revisar estados vazios, erro e sucesso antes da distribuição
 
 ## Validação automatizada
 
-A suíte cobre engine de transcrição/segmentação/SRT e a CI valida também typecheck e build do desktop.
+A CI executa:
 
-Regressões de segmentação inteligente incluem o trecho real usado na calibração:
+```powershell
+python -m unittest discover -s tests/engine -p "test_*.py" -v
+python -m engine.cli health
+npm run typecheck
+npm run build
+```
 
-- `Hola,` / `¿qué tal?`;
-- `participar en` / `un juego?`;
-- `¿Quién se` / `anima?` sem preservar a frase inteira;
-- `acá ya` quando falado colado;
-- pausa forte separando até pares coesos;
-- moeda sempre isolada.
+As regressões cobrem transcrição, segmentação inteligente, pontuação, moeda, progresso e exportação SRT.
 
-Regressões de progresso incluem:
+## Próximos checkpoints
 
-- progresso derivado do fim temporal de cada segmento;
-- percentual limitado a 99% antes da conclusão total;
-- comportamento antigo de `collect_word_tokens` mantido quando não há callback.
+1. aumentar o corpus de fixtures conforme surgirem novos exemplos reais;
+2. importar um SRT no Premiere e fechar Fase 4;
+3. validar cancelamento/retry/presets no Windows e fechar Fase 5;
+4. concluir a limpeza visual da Fase 6;
+5. concluir CUDA/cuDNN para desempenho;
+6. avançar para empacotamento e instalador Windows.
 
-Outras regressões relevantes:
-
-- `?` / `!` preservados mesmo com vírgulas/pontos desligados;
-- separadores numéricos protegidos;
-- UTF-8 no SRT;
-- CRLF;
-- não sobrescrever arquivo existente sem autorização;
-- validar antes de criar o arquivo;
-- exportação pelo CLI.
-
-## Ainda precisa de validação em máquina real
-
-- [ ] repetir o mesmo áudio ES-PY com o segmentador inteligente
-- [ ] confirmar `¿qué tal?`, `participar en`, `un juego?`, `¿Quién se` / `anima?` e `acá ya`
-- [ ] coletar novos cortes considerados ruins e transformá-los em regressão
-- [ ] validar barra/percentual em uma transcrição completa no Windows
-- [ ] cancelar uma transcrição durante a inferência e confirmar retorno limpo ao estado ocioso
-- [ ] confirmar que cancelamento não deixa processo Python órfão
-- [ ] salvar preset personalizado, reiniciar o app e confirmar persistência
-- [ ] provocar uma falha recuperável e validar **Tentar novamente** sem perder as escolhas
-- [ ] validar valores monetários em fala real
-- [ ] importar o SRT no Adobe Premiere
-- [ ] confirmar acentos, timestamps e sincronia no Premiere
-- [ ] concluir CUDA/cuDNN para testar inferência GPU sem fallback
-
-## Próximas entregas
-
-1. validar segmentação inteligente + progresso/cancelamento + presets/retry no Windows;
-2. transformar novos exemplos reais em testes até fechar Fase 3;
-3. confirmar importação SRT no Premiere e fechar Fase 4;
-4. completar runtime CUDA para desempenho;
-5. começar refinamento UX/UI da Fase 6;
-6. instalador Windows.
-
-## Preview visual
+## Preview local
 
 ```powershell
 git pull
@@ -167,7 +124,7 @@ npm install
 npm run dev
 ```
 
-Para preparar o ambiente completo de transcrição no Windows:
+Setup completo:
 
 ```powershell
 pwsh -ExecutionPolicy Bypass -File .\scripts\bootstrap.ps1
