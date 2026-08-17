@@ -13,7 +13,7 @@ type RuntimeState =
 type TranscriptionState =
   | { status: 'idle'; message: string }
   | { status: 'loading'; message: string }
-  | { status: 'success'; message: string; words: Array<{ text: string; start: number; end: number }> }
+  | { status: 'success'; message: string; words: Array<{ text: string; start: number; end: number }>; captions: Array<{ text: string; start: number; end: number }> }
   | { status: 'error'; message: string }
 
 function fileName(filePath: string | null): string {
@@ -33,6 +33,7 @@ function App() {
   const [filePath, setFilePath] = useState<string | null>(null)
   const [model, setModel] = useState('large-v3')
   const [language, setLanguage] = useState('es')
+  const [targetChars, setTargetChars] = useState(12)
   const [transcription, setTranscription] = useState<TranscriptionState>({
     status: 'idle',
     message: 'Selecione um arquivo para iniciar a primeira transcrição real.'
@@ -46,7 +47,7 @@ function App() {
       const result = await window.srtStudio.engineHealth()
       setHealth({
         status: result.ok ? 'success' : 'error',
-        message: result.ok ? `Engine ${result.version} conectado` : 'Engine respondeu com falha'
+        message: result.ok ? `Engine ${result.version} · Python ${result.python_version}` : 'Engine respondeu com falha'
       })
     } catch (error) {
       setHealth({
@@ -94,12 +95,14 @@ function App() {
       const result = await window.srtStudio.transcribe({
         filePath,
         model,
-        language: language === 'auto' ? null : language
+        language: language === 'auto' ? null : language,
+        targetChars
       })
       setTranscription({
         status: 'success',
-        message: `${result.words.length} palavras · ${result.language} · ${result.device.toUpperCase()} · ${result.duration.toFixed(1)}s`,
-        words: result.words.slice(0, 24)
+        message: `${result.captions.length} captions · ${result.words.length} palavras · ${result.language} · ${result.device.toUpperCase()} · ${result.duration.toFixed(1)}s`,
+        words: result.words.slice(0, 24),
+        captions: result.captions.slice(0, 18)
       })
     } catch (error) {
       setTranscription({
@@ -139,7 +142,7 @@ function App() {
 
         <article className="card controls">
           <span className="label">2 · Modelo</span>
-          <div className="field-row">
+          <div className="field-row three">
             <label>
               Modelo Whisper
               <select value={model} onChange={(event) => setModel(event.target.value)}>
@@ -155,6 +158,15 @@ function App() {
                 <option value="pt">Português</option>
                 <option value="en">English</option>
                 <option value="auto">Detectar</option>
+              </select>
+            </label>
+            <label>
+              Alvo da caption
+              <select value={targetChars} onChange={(event) => setTargetChars(Number(event.target.value))}>
+                <option value={10}>10 caracteres</option>
+                <option value={12}>12 caracteres · padrão</option>
+                <option value={14}>14 caracteres</option>
+                <option value={16}>16 caracteres</option>
               </select>
             </label>
           </div>
@@ -179,14 +191,28 @@ function App() {
           </div>
 
           {transcription.status === 'success' && (
-            <div className="word-preview">
-              {transcription.words.map((word, index) => (
-                <span className="word-chip" key={`${word.start}-${index}`}>
-                  <strong>{word.text}</strong>
-                  <small>{word.start.toFixed(2)} → {word.end.toFixed(2)}</small>
-                </span>
-              ))}
-            </div>
+            <>
+              <div className="caption-preview">
+                {transcription.captions.map((caption, index) => (
+                  <div className="caption-row" key={`${caption.start}-${index}`}>
+                    <span className="caption-number">{String(index + 1).padStart(2, '0')}</span>
+                    <strong>{caption.text}</strong>
+                    <small>{caption.start.toFixed(2)} → {caption.end.toFixed(2)}</small>
+                  </div>
+                ))}
+              </div>
+              <details className="raw-words">
+                <summary>Ver palavras e timestamps brutos</summary>
+                <div className="word-preview">
+                  {transcription.words.map((word, index) => (
+                    <span className="word-chip" key={`${word.start}-${index}`}>
+                      <strong>{word.text}</strong>
+                      <small>{word.start.toFixed(2)} → {word.end.toFixed(2)}</small>
+                    </span>
+                  ))}
+                </div>
+              </details>
+            </>
           )}
         </article>
       </section>
