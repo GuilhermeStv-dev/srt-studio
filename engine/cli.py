@@ -6,7 +6,7 @@ import sys
 
 from engine import __version__
 from engine.models import CaptionCue
-from engine.normalization import normalize_monetary_tokens
+from engine.normalization import merge_fragmented_currency_numbers, normalize_monetary_tokens
 from engine.segmentation import SegmentationConfig, segment_words
 from engine.srt import export_srt
 from engine.srt.validate import InvalidCueError
@@ -72,8 +72,9 @@ def transcribe(args: argparse.Namespace) -> int:
         print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False), file=sys.stderr)
         return 4
 
+    repaired_words = merge_fragmented_currency_numbers(result.words)
     segmentation_words = normalize_monetary_tokens(
-        result.words,
+        repaired_words,
         format_thousands=args.monetary_thousands,
     )
     cues = segment_words(
