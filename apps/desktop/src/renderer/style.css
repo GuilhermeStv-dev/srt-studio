@@ -421,3 +421,22 @@ button:disabled, select:disabled { opacity: .45; cursor: not-allowed; transform:
   .caption-row small { grid-column: 2; }
   .progress-meta { align-items: flex-start; flex-direction: column; gap: 4px; }
 }
+
+/* Production-facing cleanup: keep diagnostics available only when they require action. */
+.status-dot.ready,
+.status-dot.loading,
+.source-hint,
+.transcription-progress small,
+.raw-words {
+  display: none;
+}
+
+.engine-line {
+  justify-content: flex-end;
+  min-height: 0;
+  padding-top: 0;
+}
+.engine-line > span { display: none; }
+
+/* Once captions are ready, the technical run summary is redundant with the preview count. */
+.result:has(.export-status) .result-header h2 { display: none; }
