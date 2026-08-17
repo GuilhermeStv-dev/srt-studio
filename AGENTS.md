@@ -1,37 +1,115 @@
 # AGENTS.md — SRT Studio
 
-Leia este arquivo antes de alterar o projeto.
+> **Este arquivo é obrigatório para qualquer IA/agente antes de alterar o projeto.**
 
 ## Missão
 
-Construir um aplicativo desktop Windows local para transformar áudio/vídeo em SRT confiável para edição rápida no Adobe Premiere.
+Construir um aplicativo desktop Windows local para transformar áudio/vídeo em **SRT confiável e rápido para edição no Adobe Premiere**, com transcrição local, segmentação inteligente ES-PY e exportação Premiere-safe.
 
-## Stack
+## Fonte de verdade e ordem obrigatória de leitura
 
-- Electron + React + TypeScript: interface desktop
-- Python: engine
-- faster-whisper: transcrição local (próxima etapa)
+Antes de editar qualquer arquivo, leia nesta ordem:
+
+1. `AGENTS.md` — regras operacionais do agente.
+2. `docs/PRODUCT_RULES.md` — comportamento inegociável do produto.
+3. `docs/ARCHITECTURE.md` — limites entre UI, engine e exportação.
+4. `docs/ROADMAP.md` — plano completo, fases e critérios de saída.
+5. `docs/STATUS.md` — estado técnico atual.
+6. `docs/HANDOFF.md` — último checkpoint e próxima tarefa.
+7. `docs/DECISIONS.md` — decisões arquiteturais já tomadas.
+8. testes relacionados à área que será alterada.
+
+O **GitHub é a fonte de verdade técnica**. O Notion é um painel visual/espelho de acompanhamento; uma IA não deve depender do Notion para descobrir regras essenciais.
+
+## Estado atual resumido
+
+- Fundação: concluída.
+- Fase 2 — transcrição: implementada em código; validação real ES-PY/CUDA ainda pendente.
+- Fase 3 — segmentação ES-PY: primeira versão implementada e testada; precisa calibração com áudio real.
+- Preview Electron: validado no Windows.
+- O fluxo atual já chega a `WordToken[] -> CaptionCue[]` e mostra captions no desktop.
+
+**Não reimplemente etapas já concluídas.** Consulte `docs/STATUS.md` antes de assumir que algo falta.
+
+## Stack e limites
+
+- Electron + React + TypeScript: interface desktop.
+- Python: engine.
+- faster-whisper + CTranslate2: transcrição local.
+- IPC/subprocesso: ponte desktop ↔ engine.
+
+A UI configura, dispara operações e exibe resultados. **Regras de transcrição, normalização, segmentação e SRT pertencem ao engine Python.**
 
 ## Regras inegociáveis
 
 - Não mover lógica de transcrição/segmentação/SRT para React.
-- Não adicionar backend, conta, assinatura ou API paga ao MVP.
+- Não transformar o projeto em plugin UXP/Premiere; o produto atual é desktop standalone.
+- Não adicionar backend, conta, assinatura, telemetria ou API paga ao MVP.
 - Não sobrescrever mídia ou SRT original silenciosamente.
-- Não gerar cue vazio, duração zero, overlap ou tempo regressivo.
+- Não gerar cue vazio, duração zero, overlap ou timestamp regressivo.
 - Aproximadamente 12 caracteres é preferência de segmentação, não limite cego.
-- Preservar a naturalidade de ES-PY e não isolar conectores quando evitável.
+- Preservar a naturalidade de ES-PY e evitar conectores/preposições/artigos isolados quando houver alternativa melhor.
+- Preservar `?`, `!` e vírgulas contextualmente úteis; ponto final é removível pelo preset.
+- Proteger números/unidades semanticamente ligadas.
 - Toda correção linguística importante deve incluir teste de regressão.
-- Não adicionar dependência pesada sem justificativa.
-- Não commitar modelos, mídia de cliente, outputs, segredos ou ambientes virtuais.
+- Não adicionar dependência pesada sem justificativa explícita.
+- Não commitar modelos, mídia de cliente, outputs, segredos, `.venv` ou caches.
+- Não mudar stack, escopo do MVP ou arquitetura sem autorização explícita do usuário e registro em `docs/DECISIONS.md`.
 
-## Ordem de desenvolvimento
+## Fluxo obrigatório para agentes
 
-1. Leia `docs/STATUS.md`.
-2. Leia `docs/ARCHITECTURE.md` e `docs/PRODUCT_RULES.md`.
-3. Rode `python -m unittest discover -s tests/engine -p "test_*.py" -v`.
-4. Faça mudanças pequenas e testáveis.
-5. Atualize `docs/STATUS.md` quando uma entrega for concluída.
+### Antes de codar
 
-## Próxima tarefa
+1. Execute `git status` e confirme que entende mudanças locais existentes.
+2. Leia os documentos da seção **Fonte de verdade**.
+3. Execute os testes atuais:
+   - `python -m unittest discover -s tests/engine -p "test_*.py" -v`
+   - `npm run typecheck`
+   - `npm run build`
+4. Resuma em poucas linhas: estado atual, tarefa escolhida e arquivos que pretende alterar.
+5. Trabalhe em branch dedicada, por exemplo `ai/export-srt` ou `ai/calibrate-segmentation`.
 
-Implementar o adapter `faster-whisper` isolado em `engine/transcription`, aceitando arquivo e devolvendo `WordToken[]` serializável, sem depender do Electron.
+### Durante a implementação
+
+- Faça **uma entrega pequena por vez**; não avance várias fases por iniciativa própria.
+- Prefira mudanças reversíveis e contratos explícitos.
+- Antes de corrigir um bug de segmentação, crie um teste que reproduza o caso.
+- Não desabilite, apague ou afrouxe testes para fazer a CI passar.
+- Não altere comportamento fora do escopo da tarefa sem registrar e justificar.
+
+### Antes de considerar concluído
+
+Obrigatório:
+
+```powershell
+python -m unittest discover -s tests/engine -p "test_*.py" -v
+npm run typecheck
+npm run build
+```
+
+Se a UI mudou, o preview `npm run dev` precisa ser validado no Windows pelo usuário quando o agente não puder inspecioná-lo diretamente.
+
+Atualize:
+
+- `docs/STATUS.md` com o que efetivamente mudou;
+- `docs/HANDOFF.md` com o próximo checkpoint;
+- `docs/ROADMAP.md` somente se um critério de fase foi atingido;
+- `docs/DECISIONS.md` somente para decisão arquitetural/produto relevante.
+
+Abra PR e descreva testes e riscos. **Não faça merge automático na `main`.**
+
+## Regra de parada
+
+Pare e peça decisão do usuário se a tarefa exigir qualquer uma destas mudanças:
+
+- trocar Electron/React/Python/faster-whisper;
+- introduzir API/cloud/backend/autenticação;
+- mudar a política de captions ou regras ES-PY de produto;
+- alterar formato/semântica de exportação;
+- remover compatibilidade Windows/local-first;
+- reestruturar módulos principais;
+- aceitar regressão para “resolver depois”.
+
+## Próximo checkpoint autorizado
+
+Validar transcrição real ES-PY no Windows usando `.venv`/`faster-whisper`, revisar as captions geradas e transformar cortes ruins em testes de regressão. Depois, implementar **exportação SRT pela interface** conforme `docs/ROADMAP.md`.
