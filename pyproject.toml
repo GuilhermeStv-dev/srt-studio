@@ -16,6 +16,9 @@ dev = [
 transcription = [
   "faster-whisper>=1.2,<2",
 ]
+packaging = [
+  "pyinstaller>=6.21,<7",
+]
 
 # O repositório é um monorepo flat-layout. Sem descoberta explícita, setuptools
 # tenta tratar apps/shared/references/node_modules como pacotes Python.
