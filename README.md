@@ -14,9 +14,25 @@ Esta base já contém:
 - normalização básica de texto;
 - geração e validação estrutural de SRT;
 - health-check do engine via CLI;
-- ponte IPC Electron → Python para verificar o engine;
+- ponte IPC Electron → Python;
 - 24 testes unitários do engine;
 - CI inicial para engine Python e typecheck/build do desktop.
+
+## Antes de desenvolver
+
+Qualquer pessoa ou IA deve começar por [`AGENTS.md`](AGENTS.md).
+
+Documentos de continuidade:
+
+- [`docs/PRODUCT_RULES.md`](docs/PRODUCT_RULES.md) — regras inegociáveis do produto;
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — arquitetura e responsabilidade das camadas;
+- [`docs/ROADMAP.md`](docs/ROADMAP.md) — plano completo e critérios de cada fase;
+- [`docs/STATUS.md`](docs/STATUS.md) — o que está pronto e pendente;
+- [`docs/HANDOFF.md`](docs/HANDOFF.md) — último checkpoint;
+- [`docs/DECISIONS.md`](docs/DECISIONS.md) — decisões que não devem ser reinterpretadas silenciosamente;
+- [`docs/AI_CONTINUITY.md`](docs/AI_CONTINUITY.md) — procedimento e prompt para trocar de IA com segurança.
+
+O GitHub é a fonte de verdade técnica. O Notion funciona como painel visual de acompanhamento.
 
 ## Objetivo do MVP
 
@@ -52,8 +68,6 @@ srt-studio/
 └─ .github/
 ```
 
-Leia [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) e [`docs/STATUS.md`](docs/STATUS.md) antes de continuar o desenvolvimento.
-
 ## Pré-requisitos
 
 - Windows 11
@@ -61,12 +75,19 @@ Leia [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) e [`docs/STATUS.md`](docs/ST
 - npm
 - Python 3.11+
 
-O `faster-whisper` é uma dependência opcional do engine. Para transcrição real, use `pip install -e ".[transcription]"`. Para desenvolvimento no Windows, Python 3.12 é o ambiente recomendado do projeto.
+O `faster-whisper` é uma dependência opcional do engine. Para desenvolvimento no Windows, Python 3.12 é o ambiente recomendado do projeto.
 
 ## Rodar os testes do engine
 
 ```powershell
 python -m unittest discover -s tests/engine -p "test_*.py" -v
+```
+
+## Quality gates do desktop
+
+```powershell
+npm run typecheck
+npm run build
 ```
 
 ## Health-check do engine
@@ -101,4 +122,4 @@ O script cria uma `.venv`, instala `faster-whisper`, roda os testes e verifica o
 
 ## Próximo passo
 
-Validar uma transcrição ES-PY real no Windows, revisar o preview de captions e transformar os casos ruins em testes de regressão para calibrar o segmentador.
+Validar uma transcrição ES-PY real no Windows, revisar o preview de captions e transformar os casos ruins em testes de regressão para calibrar o segmentador. Depois, avançar para exportação SRT pela interface conforme `docs/ROADMAP.md`.
