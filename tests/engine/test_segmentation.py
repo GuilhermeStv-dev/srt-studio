@@ -13,7 +13,7 @@ class SegmentationTests(unittest.TestCase):
     def test_empty_input(self) -> None:
         self.assertEqual(segment_words([]), ())
 
-    def test_one_word_per_caption(self) -> None:
+    def test_one_word_target_keeps_neutral_words_separate(self) -> None:
         result = segment_words(
             words(
                 ("Hola", 0.00, 0.20),
@@ -24,7 +24,7 @@ class SegmentationTests(unittest.TestCase):
         )
         self.assertEqual([cue.text for cue in result], ["Hola", "mundo", "ahora"])
 
-    def test_two_words_per_caption(self) -> None:
+    def test_two_words_per_caption_without_special_cadence(self) -> None:
         result = segment_words(
             words(
                 ("uno", 0.00, 0.20),
@@ -36,7 +36,7 @@ class SegmentationTests(unittest.TestCase):
         )
         self.assertEqual([cue.text for cue in result], ["uno dos", "tres cuatro"])
 
-    def test_three_words_per_caption(self) -> None:
+    def test_three_words_per_caption_without_special_cadence(self) -> None:
         result = segment_words(
             words(
                 ("uno", 0.00, 0.10),
@@ -48,7 +48,7 @@ class SegmentationTests(unittest.TestCase):
         )
         self.assertEqual([cue.text for cue in result], ["uno dos tres", "cuatro"])
 
-    def test_four_words_per_caption(self) -> None:
+    def test_four_words_per_caption_without_special_cadence(self) -> None:
         result = segment_words(
             words(
                 ("uno", 0.00, 0.10),
@@ -81,6 +81,100 @@ class SegmentationTests(unittest.TestCase):
             SegmentationConfig(target_words=1, ignore_prepositions=False),
         )
         self.assertEqual([cue.text for cue in result], ["para", "vos"])
+
+    def test_one_word_target_keeps_que_tal_as_short_unit(self) -> None:
+        result = segment_words(
+            words(
+                ("Hola,", 0.00, 0.22),
+                ("¿qué", 0.36, 0.82),
+                ("tal?", 0.82, 1.16),
+            ),
+            SegmentationConfig(target_words=1, ignore_prepositions=True),
+        )
+        self.assertEqual([cue.text for cue in result], ["Hola,", "¿qué tal?"])
+
+    def test_one_word_target_can_attach_preposition_to_previous_word(self) -> None:
+        result = segment_words(
+            words(
+                ("participar", 0.00, 0.38),
+                ("en", 0.38, 0.68),
+                ("un", 0.68, 0.80),
+                ("juego?", 0.80, 1.12),
+            ),
+            SegmentationConfig(target_words=1, ignore_prepositions=True),
+        )
+        self.assertEqual([cue.text for cue in result], ["participar en", "un juego?"])
+
+    def test_one_word_target_keeps_quien_se_but_not_three_word_sentence(self) -> None:
+        result = segment_words(
+            words(
+                ("¿Quién", 0.00, 0.20),
+                ("se", 0.20, 0.26),
+                ("anima?", 0.26, 0.66),
+            ),
+            SegmentationConfig(target_words=1, ignore_prepositions=True),
+        )
+        self.assertEqual([cue.text for cue in result], ["¿Quién se", "anima?"])
+
+    def test_one_word_target_can_keep_short_particle_pair(self) -> None:
+        result = segment_words(
+            words(
+                ("acá", 0.00, 0.35),
+                ("ya", 0.35, 0.53),
+                ("encontramos", 0.53, 0.90),
+            ),
+            SegmentationConfig(target_words=1, ignore_prepositions=True),
+        )
+        self.assertEqual([cue.text for cue in result], ["acá ya", "encontramos"])
+
+    def test_hard_pause_breaks_even_a_cohesive_pair(self) -> None:
+        result = segment_words(
+            words(
+                ("¿qué", 0.00, 0.20),
+                ("tal?", 0.70, 1.00),
+            ),
+            SegmentationConfig(target_words=1, ignore_prepositions=True),
+        )
+        self.assertEqual([cue.text for cue in result], ["¿qué", "tal?"])
+
+    def test_real_audio_excerpt_target_one_uses_cadence_and_short_cohesion(self) -> None:
+        result = segment_words(
+            words(
+                ("Hola,", 0.00, 0.22),
+                ("¿qué", 0.36, 0.82),
+                ("tal?", 0.82, 1.16),
+                ("¿Quién", 1.76, 2.16),
+                ("quiere", 2.16, 2.30),
+                ("participar", 2.30, 2.68),
+                ("en", 2.68, 2.98),
+                ("un", 2.98, 3.10),
+                ("juego?", 3.10, 3.42),
+                ("¿Quién", 3.62, 3.82),
+                ("se", 3.82, 3.88),
+                ("anima?", 3.88, 4.28),
+                ("Bueno,", 4.46, 4.86),
+                ("acá", 4.86, 5.62),
+                ("ya", 5.62, 5.82),
+                ("encontramos", 5.82, 6.18),
+            ),
+            SegmentationConfig(target_words=1, ignore_prepositions=True),
+        )
+        self.assertEqual(
+            [cue.text for cue in result],
+            [
+                "Hola,",
+                "¿qué tal?",
+                "¿Quién",
+                "quiere",
+                "participar en",
+                "un juego?",
+                "¿Quién se",
+                "anima?",
+                "Bueno,",
+                "acá ya",
+                "encontramos",
+            ],
+        )
 
     def test_preserves_commas_and_periods_when_enabled(self) -> None:
         result = segment_words(
