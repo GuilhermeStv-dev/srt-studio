@@ -29,15 +29,35 @@ function pythonExecutable(): string {
   return existsSync(localPython) ? localPython : 'python'
 }
 
+function packagedEngineExecutable(): string {
+  const override = process.env.SRT_STUDIO_ENGINE?.trim()
+  if (override) return override
+
+  return process.platform === 'win32'
+    ? path.join(process.resourcesPath, 'srt-studio-engine', 'srt-studio-engine.exe')
+    : path.join(process.resourcesPath, 'srt-studio-engine', 'srt-studio-engine')
+}
+
 function engineSpawn(args: string[]): ChildProcessWithoutNullStreams {
+  const env = {
+    ...process.env,
+    PYTHONUTF8: '1',
+    PYTHONIOENCODING: 'utf-8'
+  }
+
+  if (app.isPackaged) {
+    const executable = packagedEngineExecutable()
+    return spawn(executable, args, {
+      cwd: path.dirname(executable),
+      windowsHide: true,
+      env
+    })
+  }
+
   return spawn(pythonExecutable(), ['-X', 'utf8', '-m', 'engine.cli', ...args], {
     cwd: repoRoot(),
     windowsHide: true,
-    env: {
-      ...process.env,
-      PYTHONUTF8: '1',
-      PYTHONIOENCODING: 'utf-8'
-    }
+    env
   })
 }
 
