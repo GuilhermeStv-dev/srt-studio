@@ -1,0 +1,15 @@
+{
+  "name": "Hard pause breaks cohesive pair",
+  "description": "Uma pausa perceptível deve vencer a coesão lexical mesmo em uma expressão curta como qué tal.",
+  "source": "product-rule",
+  "config": {
+    "target_words": 1,
+    "ignore_prepositions": true,
+    "preserve_commas_periods": true
+  },
+  "tokens": [
+    {"text": "¿qué", "start": 0.00, "end": 0.20},
+    {"text": "tal?", "start": 0.70, "end": 1.00}
+  ],
+  "expected_captions": ["¿qué", "tal?"]
+}
