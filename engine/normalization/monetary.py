@@ -28,9 +28,8 @@ _FINANCIAL_CONTEXT = {
     "dinero",
     "ganar",
     "gana",
-    "jugá",
-    "juga",
     "jugar",
+    "juga",
     "pagar",
     "pago",
     "premio",
@@ -196,7 +195,16 @@ def _has_non_monetary_unit_after(words: Sequence[WordToken], end: int) -> bool:
     return _fold(words[end + 1].text) in _NON_MONETARY_UNITS
 
 
-def _merged_token(words: Sequence[WordToken], start: int, end: int, text: str) -> WordToken:
+def _source_text(words: Sequence[WordToken], start: int, end: int) -> str:
+    return " ".join(word.text.strip() for word in words[start : end + 1] if word.text.strip())
+
+
+def _merged_token(
+    words: Sequence[WordToken],
+    start: int,
+    end: int,
+    text: str,
+) -> WordToken:
     probability_values = [
         word.probability for word in words[start : end + 1] if word.probability is not None
     ]
@@ -206,27 +214,42 @@ def _merged_token(words: Sequence[WordToken], start: int, end: int, text: str) -
         start=words[start].start,
         end=max(word.end for word in words[start : end + 1]),
         probability=probability,
+        kind="monetary",
     )
+
+
+def _render_money(
+    words: Sequence[WordToken],
+    start: int,
+    end: int,
+    thousands: int,
+    format_thousands: bool,
+) -> str:
+    if format_thousands:
+        return f"{thousands} mil"
+    return _source_text(words, start, end)
 
 
 def normalize_monetary_tokens(
     words: Sequence[WordToken],
-    enabled: bool = False,
+    format_thousands: bool = False,
 ) -> tuple[WordToken, ...]:
-    """Normaliza somente valores monetários redondos em milhares para `N mil`.
+    """Reconhece valores monetários e os transforma em um token semântico único.
 
-    Marcadores como `₲`, `Gs.` e `guaraníes` ajudam a identificar moeda, mas são
-    removidos da saída quando a opção está ativa. Números sem contexto financeiro
-    ou com unidade explicitamente não monetária permanecem intactos.
+    O reconhecimento acontece sempre para que valores monetários possam ser isolados
+    na segmentação. Quando `format_thousands=True`, valores redondos em milhares são
+    exibidos como `N mil` e marcadores como `₲`/`guaraníes` somem da saída.
+    Quando desligado, o texto reconhecido é preservado como o Whisper o entregou.
+    Números não monetários permanecem intactos.
     """
-    if not enabled or not words:
-        return tuple(words)
+    if not words:
+        return ()
 
     output: list[WordToken] = []
     index = 0
 
     while index < len(words):
-        # Símbolo de moeda separado: ₲ 50.000
+        # Símbolo separado: ₲ 50.000 [guaraníes]
         if _is_currency(words[index].text) and words[index].text.strip() in _CURRENCY_SYMBOLS:
             if index + 1 < len(words):
                 thousands = _numeric_thousands(words[index + 1].text)
@@ -234,11 +257,18 @@ def normalize_monetary_tokens(
                     end = index + 1
                     if end + 1 < len(words) and _is_currency(words[end + 1].text):
                         end += 1
-                    output.append(_merged_token(words, index, end, f"{thousands} mil"))
+                    output.append(
+                        _merged_token(
+                            words,
+                            index,
+                            end,
+                            _render_money(words, index, end, thousands, format_thousands),
+                        )
+                    )
                     index = end + 1
                     continue
 
-        # Número formatado: 50.000 / ₲50.000, com moeda explícita ou contexto financeiro.
+        # 50.000 / ₲50.000, reconhecido por moeda explícita ou contexto financeiro.
         thousands = _numeric_thousands(words[index].text)
         if thousands is not None:
             explicit_symbol = any(symbol in words[index].text for symbol in _CURRENCY_SYMBOLS)
@@ -254,11 +284,18 @@ def normalize_monetary_tokens(
                     and not _has_non_monetary_unit_after(words, end)
                 )
             ):
-                output.append(_merged_token(words, index, end, f"{thousands} mil"))
+                output.append(
+                    _merged_token(
+                        words,
+                        index,
+                        end,
+                        _render_money(words, index, end, thousands, format_thousands),
+                    )
+                )
                 index = end + 1
                 continue
 
-        # Forma já abreviada: 200 mil guaraníes -> 200 mil.
+        # 200 mil [guaraníes]
         number = _simple_number(words[index].text)
         if number is not None and index + 1 < len(words) and _fold(words[index + 1].text) == "mil":
             end = index + 1
@@ -273,11 +310,18 @@ def normalize_monetary_tokens(
                     and not _has_non_monetary_unit_after(words, end)
                 )
             ):
-                output.append(_merged_token(words, index, end, f"{number} mil"))
+                output.append(
+                    _merged_token(
+                        words,
+                        index,
+                        end,
+                        _render_money(words, index, end, number, format_thousands),
+                    )
+                )
                 index = end + 1
                 continue
 
-        # Forma por extenso: doscientos mil guaraníes -> 200 mil.
+        # doscientos mil [guaraníes]
         matched_written = False
         for mil_index in range(index + 1, min(len(words), index + 5)):
             if _fold(words[mil_index].text) != "mil":
@@ -291,7 +335,14 @@ def normalize_monetary_tokens(
                 explicit_currency = True
                 end += 1
             if explicit_currency or _has_financial_context(words, index, end):
-                output.append(_merged_token(words, index, end, f"{parsed} mil"))
+                output.append(
+                    _merged_token(
+                        words,
+                        index,
+                        end,
+                        _render_money(words, index, end, parsed, format_thousands),
+                    )
+                )
                 index = end + 1
                 matched_written = True
             break
