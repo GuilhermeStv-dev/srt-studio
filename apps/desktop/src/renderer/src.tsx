@@ -10,10 +10,18 @@ type RuntimeState =
   | { status: 'ready'; message: string }
   | { status: 'missing'; message: string }
 
+type Caption = { text: string; start: number; end: number }
+
 type TranscriptionState =
   | { status: 'idle'; message: string }
   | { status: 'loading'; message: string }
-  | { status: 'success'; message: string; words: Array<{ text: string; start: number; end: number }>; captions: Array<{ text: string; start: number; end: number }> }
+  | { status: 'success'; message: string; words: Caption[]; captions: Caption[] }
+  | { status: 'error'; message: string }
+
+type ExportState =
+  | { status: 'idle'; message: string }
+  | { status: 'loading'; message: string }
+  | { status: 'success'; message: string; path: string }
   | { status: 'error'; message: string }
 
 function fileName(filePath: string | null): string {
@@ -40,6 +48,10 @@ function App() {
   const [transcription, setTranscription] = useState<TranscriptionState>({
     status: 'idle',
     message: 'Selecione um arquivo para iniciar a primeira transcrição real.'
+  })
+  const [exportState, setExportState] = useState<ExportState>({
+    status: 'idle',
+    message: 'O SRT ficará disponível depois da transcrição.'
   })
 
   const selectedName = useMemo(() => fileName(filePath), [filePath])
@@ -89,11 +101,16 @@ function App() {
         status: 'idle',
         message: 'Arquivo pronto. A transcrição ainda não altera nem sobrescreve o original.'
       })
+      setExportState({
+        status: 'idle',
+        message: 'O SRT ficará disponível depois da transcrição.'
+      })
     }
   }
 
   async function runTranscription() {
     if (!filePath) return
+    setExportState({ status: 'idle', message: 'Aguardando a nova transcrição.' })
     setTranscription({ status: 'loading', message: 'Carregando modelo e transcrevendo…' })
     try {
       const result = await window.srtStudio.transcribe({
@@ -110,12 +127,42 @@ function App() {
         status: 'success',
         message: `${result.captions.length} captions · ${result.words.length} palavras · ${result.language} · ${result.device.toUpperCase()}${fallbackLabel} · ${result.duration.toFixed(1)}s`,
         words: result.words.slice(0, 24),
-        captions: result.captions.slice(0, 24)
+        captions: result.captions
+      })
+      setExportState({
+        status: 'idle',
+        message: 'Captions validadas no pipeline. Escolha onde salvar o SRT.'
       })
     } catch (error) {
       setTranscription({
         status: 'error',
         message: error instanceof Error ? error.message : 'Falha ao transcrever'
+      })
+    }
+  }
+
+  async function exportSrt() {
+    if (!filePath || transcription.status !== 'success') return
+
+    setExportState({ status: 'loading', message: 'Validando e preparando o SRT…' })
+    try {
+      const result = await window.srtStudio.exportSrt({
+        sourceFilePath: filePath,
+        captions: transcription.captions
+      })
+      if (result.canceled) {
+        setExportState({ status: 'idle', message: 'Exportação cancelada. Nenhum arquivo foi alterado.' })
+        return
+      }
+      setExportState({
+        status: 'success',
+        path: result.path,
+        message: `SRT exportado com ${result.cue_count} captions · UTF-8`
+      })
+    } catch (error) {
+      setExportState({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Falha ao exportar o SRT'
       })
     }
   }
@@ -129,7 +176,7 @@ function App() {
     <main className="shell">
       <section className="hero">
         <div className="hero-topline">
-          <span className="eyebrow">TRANSCRIÇÃO · 0.3 DEV</span>
+          <span className="eyebrow">TRANSCRIÇÃO · 0.4 DEV</span>
           <span className={`status-dot ${runtime.status}`}>{runtime.message}</span>
         </div>
         <h1>SRT Studio</h1>
@@ -229,18 +276,34 @@ function App() {
               <span className="label">3 · Preview das captions</span>
               <h2>{transcription.message}</h2>
             </div>
-            <button
-              onClick={runTranscription}
-              disabled={!filePath || transcription.status === 'loading' || runtime.status !== 'ready'}
-            >
-              {transcription.status === 'loading' ? 'Transcrevendo…' : 'Transcrever agora'}
-            </button>
+            <div className="result-actions">
+              <button
+                className={transcription.status === 'success' ? 'secondary' : undefined}
+                onClick={runTranscription}
+                disabled={!filePath || transcription.status === 'loading' || runtime.status !== 'ready'}
+              >
+                {transcription.status === 'loading' ? 'Transcrevendo…' : transcription.status === 'success' ? 'Transcrever novamente' : 'Transcrever agora'}
+              </button>
+              {transcription.status === 'success' && (
+                <button
+                  onClick={exportSrt}
+                  disabled={exportState.status === 'loading'}
+                >
+                  {exportState.status === 'loading' ? 'Exportando…' : 'Exportar SRT'}
+                </button>
+              )}
+            </div>
           </div>
 
           {transcription.status === 'success' && (
             <>
+              <div className={`export-status ${exportState.status}`}>
+                <strong>{exportState.message}</strong>
+                {exportState.status === 'success' && <small>{exportState.path}</small>}
+              </div>
+
               <div className="caption-preview">
-                {transcription.captions.map((caption, index) => (
+                {transcription.captions.slice(0, 24).map((caption, index) => (
                   <div className="caption-row" key={`${caption.start}-${index}`}>
                     <span className="caption-number">{String(index + 1).padStart(2, '0')}</span>
                     <strong>{caption.text}</strong>
@@ -248,6 +311,9 @@ function App() {
                   </div>
                 ))}
               </div>
+              {transcription.captions.length > 24 && (
+                <p className="preview-note">Preview mostrando as primeiras 24 de {transcription.captions.length} captions. A exportação usa todas.</p>
+              )}
               <details className="raw-words">
                 <summary>Ver palavras e timestamps brutos</summary>
                 <div className="word-preview">
