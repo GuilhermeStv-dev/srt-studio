@@ -19,6 +19,7 @@ module.exports = {
   outDir: releaseDir,
   packagerConfig: {
     asar: true,
+    junk: false,
     name: 'SRT Studio',
     executableName: 'SRT Studio',
     extraResource: [engineRuntime],
