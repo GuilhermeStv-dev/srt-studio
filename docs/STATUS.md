@@ -90,8 +90,14 @@
 - [x] feedback visual durante drag-and-drop
 - [x] preview rolável com todas as captions da transcrição
 - [x] amostra técnica de WordTokens/timestamps mantida separadamente
-- [ ] progresso real da transcrição
-- [ ] cancelamento da transcrição
+- [x] progresso por estágios: preparação, carregamento do modelo, inferência e finalização
+- [x] percentual real durante inferência calculado por `segment.end / duração`
+- [x] carregamento do modelo usa estado indeterminado, sem percentual inventado
+- [x] progresso fica em no máximo 99% até o pipeline terminar
+- [x] uma única transcrição ativa por vez
+- [x] botão **Cancelar** encerra somente o processo Python da transcrição ativa
+- [x] cancelamento não gera captions/SRT parciais
+- [x] troca de arquivo e configurações bloqueada enquanto a transcrição está ativa
 - [ ] estados de retry mais completos
 - [ ] presets de configuração
 
@@ -108,6 +114,12 @@ Regressões de segmentação inteligente incluem o trecho real usado na calibra�
 - pausa forte separando até pares coesos;
 - moeda sempre isolada.
 
+Regressões de progresso incluem:
+
+- progresso derivado do fim temporal de cada segmento;
+- percentual limitado a 99% antes da conclusão total;
+- comportamento antigo de `collect_word_tokens` mantido quando não há callback.
+
 Outras regressões relevantes:
 
 - `?` / `!` preservados mesmo com vírgulas/pontos desligados;
@@ -123,6 +135,9 @@ Outras regressões relevantes:
 - [ ] repetir o mesmo áudio ES-PY com o segmentador inteligente
 - [ ] confirmar `¿qué tal?`, `participar en`, `un juego?`, `¿Quién se` / `anima?` e `acá ya`
 - [ ] coletar novos cortes considerados ruins e transformá-los em regressão
+- [ ] validar barra/percentual em uma transcrição completa no Windows
+- [ ] cancelar uma transcrição durante a inferência e confirmar retorno limpo ao estado ocioso
+- [ ] confirmar que cancelamento não deixa processo Python órfão
 - [ ] validar valores monetários em fala real
 - [ ] importar o SRT no Adobe Premiere
 - [ ] confirmar acentos, timestamps e sincronia no Premiere
@@ -130,10 +145,10 @@ Outras regressões relevantes:
 
 ## Próximas entregas
 
-1. validar o novo segmentador inteligente no mesmo áudio real;
+1. validar segmentação inteligente + progresso/cancelamento no mesmo áudio real;
 2. transformar novos exemplos reais em testes até fechar Fase 3;
 3. confirmar importação SRT no Premiere e fechar Fase 4;
-4. implementar progresso/cancelamento de transcrição em PR separado;
+4. melhorar estados de erro/retry do desktop;
 5. completar runtime CUDA para desempenho;
 6. presets;
 7. instalador Windows.
