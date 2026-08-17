@@ -7,23 +7,38 @@ on:
       - 'scripts/build-engine.ps1'
       - 'scripts/engine_entry.py'
       - 'pyproject.toml'
-      - 'apps/desktop/src/main/**'
+      - 'package.json'
+      - 'apps/desktop/**'
       - '.github/workflows/windows-packaging.yml'
   workflow_dispatch:
 
 jobs:
-  engine-standalone:
+  windows-installer:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
       - name: Create project venv
         run: python -m venv .venv
-      - name: Build standalone engine
+      - name: Install desktop dependencies
+        run: npm install
+      - name: Build Windows installer
         shell: pwsh
-        run: pwsh -ExecutionPolicy Bypass -File .\scripts\build-engine.ps1
-      - name: Verify packaged health
+        run: npm run make:win
+      - name: Verify Setup executable
         shell: pwsh
-        run: .\dist\engine\srt-studio-engine\srt-studio-engine.exe health
+        run: |
+          $setup = Get-ChildItem -Path .\release\forge -Recurse -Filter 'SRT-Studio-Setup.exe' | Select-Object -First 1
+          if (-not $setup) { throw 'SRT-Studio-Setup.exe não foi gerado.' }
+          Write-Host "Installer: $($setup.FullName)"
+      - name: Upload Windows installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: srt-studio-windows-installer
+          path: release/forge/make/squirrel.windows/x64/**
+          if-no-files-found: error
