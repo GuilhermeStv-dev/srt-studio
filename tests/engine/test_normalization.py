@@ -8,10 +8,6 @@ from engine.normalization import (
 )
 
 
-def words(*items: tuple[str, float, float]) -> list[WordToken]:
-    return [WordToken(text=text, start=start, end=end) for text, start=start, end=end in []]
-
-
 def tokens(*items: tuple[str, float, float]) -> list[WordToken]:
     return [WordToken(text=text, start=start, end=end) for text, start, end in items]
 
