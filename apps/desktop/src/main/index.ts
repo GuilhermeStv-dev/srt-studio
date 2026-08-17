@@ -28,7 +28,11 @@ function parseJson(value: string, fallbackMessage: string): unknown {
   }
 }
 
-function runEngineJson(args: string[], acceptNonZero = false): Promise<unknown> {
+function runEngineJson(
+  args: string[],
+  acceptNonZero = false,
+  stdinPayload?: unknown
+): Promise<unknown> {
   return new Promise((resolve, reject) => {
     const child = spawn(pythonExecutable(), ['-X', 'utf8', '-m', 'engine.cli', ...args], {
       cwd: repoRoot(),
@@ -74,6 +78,11 @@ function runEngineJson(args: string[], acceptNonZero = false): Promise<unknown> 
         reject(error)
       }
     })
+
+    if (stdinPayload !== undefined) {
+      child.stdin.setDefaultEncoding('utf8')
+      child.stdin.end(JSON.stringify(stdinPayload))
+    }
   })
 }
 
@@ -145,6 +154,56 @@ app.whenReady().then(() => {
       if (!input.preservePunctuation) args.push('--no-punctuation')
       if (input.formatMonetaryThousands) args.push('--monetary-thousands')
       return runEngineJson(args)
+    }
+  )
+
+  ipcMain.handle(
+    'srt:export',
+    async (_event, input: {
+      sourceFilePath: string
+      captions: Array<{ text: string; start: number; end: number }>
+    }) => {
+      if (!input.sourceFilePath || !Array.isArray(input.captions) || input.captions.length === 0) {
+        throw new Error('É preciso transcrever e gerar captions antes de exportar o SRT')
+      }
+
+      const source = path.parse(input.sourceFilePath)
+      const selection = await dialog.showSaveDialog({
+        title: 'Exportar SRT',
+        defaultPath: path.join(source.dir, `${source.name}.srt`),
+        filters: [{ name: 'Legenda SubRip', extensions: ['srt'] }]
+      })
+
+      if (selection.canceled || !selection.filePath) {
+        return { canceled: true }
+      }
+
+      const outputPath = path.extname(selection.filePath).toLowerCase() === '.srt'
+        ? selection.filePath
+        : `${selection.filePath}.srt`
+
+      let overwrite = false
+      if (existsSync(outputPath)) {
+        const confirmation = await dialog.showMessageBox({
+          type: 'warning',
+          buttons: ['Cancelar', 'Substituir'],
+          defaultId: 0,
+          cancelId: 0,
+          title: 'Arquivo já existe',
+          message: 'Já existe um SRT com esse nome.',
+          detail: `O arquivo só será substituído se você confirmar.\n\n${outputPath}`
+        })
+        if (confirmation.response !== 1) {
+          return { canceled: true }
+        }
+        overwrite = true
+      }
+
+      const args = ['export-srt', '--output', outputPath]
+      if (overwrite) args.push('--overwrite')
+
+      const result = await runEngineJson(args, false, { captions: input.captions })
+      return { canceled: false, ...(result as Record<string, unknown>) }
     }
   )
 
