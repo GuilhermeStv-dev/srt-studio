@@ -2,9 +2,9 @@
 
 ## Estado
 
-O SRT Studio está na **Fase 2 — Motor de transcrição**.
+O SRT Studio tem a Fundação concluída. A **Fase 2 (transcrição)** está implementada em código e aguarda validação real em Windows; a **Fase 3 (segmentação ES-PY)** já possui uma primeira versão determinística e testada.
 
-A Fundação está publicada em `GuilhermeStv-dev/srt-studio`. UI e engine permanecem separados, com IPC apenas como ponte.
+Repositório: `GuilhermeStv-dev/srt-studio`, branch `main`.
 
 ## Verificação atual
 
@@ -13,9 +13,9 @@ python -m unittest discover -s tests/engine -p "test_*.py" -v
 python -m engine.cli health
 ```
 
-Estado em 2026-08-17: **15 testes passando** e health-check `ok: true`.
+Estado em 2026-08-17: **23 testes passando**.
 
-## O que foi implementado na transcrição
+## Transcrição
 
 - `engine/transcription/faster_whisper_adapter.py`
 - detecção de CUDA com CTranslate2;
@@ -25,28 +25,43 @@ Estado em 2026-08-17: **15 testes passando** e health-check `ok: true`.
 - VAD por padrão;
 - retorno serializável de palavras com `start/end/probability`;
 - CLI `runtime` e `transcribe`;
-- UI com seletor de mídia + modelo + idioma + preview de palavras.
+- Electron usa `.venv` do repositório quando ela existe.
 
-A suíte não depende de `faster-whisper` instalado. O ambiente de CI testa a lógica pura; a inferência real precisa ser validada em uma máquina Windows com o extra `transcription` instalado.
+## Segmentação
+
+- `engine/segmentation/segmenter.py`
+- programação dinâmica em vez de corte guloso;
+- alvo de caracteres configurável, padrão 12;
+- limite de segurança configurável;
+- penalidades para conectores isolados/pendurados;
+- pausas e pontuação forte influenciam boundaries;
+- normalização de ponto final no texto do cue;
+- proteção contra cue sem duração e overlap;
+- testes em `tests/engine/test_segmentation.py`.
+
+A CLI `transcribe` agora devolve também `captions`, e o renderer mostra um preview das captions antes dos WordTokens brutos.
+
+## Setup Windows
+
+Preferir o script:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\bootstrap.ps1
+npm run dev
+```
+
+O script cria `.venv`, instala o extra `transcription`, executa testes, health-check e runtime-check.
 
 ## Próximo objetivo imediato
 
-Validar um arquivo real ES-PY no Windows:
+Usar um arquivo real ES-PY e registrar:
 
-```powershell
-py -3.12 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -e ".[transcription]"
-python -m engine.cli runtime
-python -m engine.cli transcribe "C:\arquivo.mp3" --model large-v3 --language es
-```
-
-Registrar:
-
-- device/compute type escolhidos;
+- device/compute type;
 - tempo total;
-- quantidade de palavras;
-- erros de reconhecimento relevantes;
-- comportamento de timestamps.
+- qualidade do texto;
+- divisão de captions;
+- casos em que artigo/preposição foi separado de forma ruim;
+- captions longas/curtas demais;
+- timestamps suspeitos.
 
-Depois iniciar `engine/segmentation` usando fixtures e testes antes de adicionar regras à UI.
+Cada falha real de segmentação deve virar fixture/teste antes de mudar o algoritmo.
