@@ -108,11 +108,12 @@ def _candidate_cost(
 
     cost = float((char_count - config.target_chars) ** 2)
 
-    # Evita legendas de uma única palavra quando há alternativas razoáveis.
+    # Uma palavra só é válida (palavra longa, pausa, fim de frase), mas deve ser
+    # claramente menos atraente quando duas ou mais palavras cabem bem juntas.
     if len(words) == 1 and not (starts_at_zero and ends_at_last):
-        cost += 18.0
+        cost += 48.0
         if char_count <= 4:
-            cost += 15.0
+            cost += 22.0
 
     # Artigos/preposições podem iniciar um cue quando estão junto do complemento
     # (ex.: "los premios", "en NuevaBet"). O que evitamos é deixá-los sozinhos
