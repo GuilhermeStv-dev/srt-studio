@@ -65,6 +65,21 @@ class SegmentationTests(unittest.TestCase):
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0].text, "responsablemente")
 
+    def test_prefers_two_or_more_words_when_fit_is_reasonable(self) -> None:
+        result = segment_words(
+            words(
+                ("Depositá", 0.00, 0.30),
+                ("50.000", 0.31, 0.55),
+                ("y", 0.56, 0.62),
+                ("jugá", 0.63, 0.82),
+                ("con", 0.83, 0.94),
+                ("100.000", 0.95, 1.22),
+            ),
+            SegmentationConfig(target_chars=12, hard_max_chars=24),
+        )
+        self.assertEqual([cue.text for cue in result], ["Depositá 50.000", "y jugá con 100.000"])
+        self.assertTrue(all(len(cue.text.split()) >= 2 for cue in result))
+
     def test_removes_final_period_but_keeps_question_mark(self) -> None:
         result = segment_words(
             words(
