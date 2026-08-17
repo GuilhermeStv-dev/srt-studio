@@ -69,6 +69,20 @@ h1 { margin: 12px 0 10px; font-size: clamp(50px, 7vw, 82px); line-height: .95; l
 .source-error { color: #ff9d9d; }
 
 .controls { display: grid; gap: 18px; }
+.preset-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 10px 14px;
+  padding: 14px;
+  border: 1px solid #30323c;
+  border-radius: 12px;
+  background: rgba(21, 22, 26, .72);
+}
+.preset-selector { min-width: 0; }
+.preset-actions { display: flex; gap: 8px; align-items: center; }
+.preset-message { grid-column: 1 / -1; color: #858994; font-size: 10px; }
+button.ghost.danger { color: #ffb6b6; border-color: rgba(255, 157, 157, .28); }
 .field-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .field-row.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 label { display: grid; gap: 8px; color: #c8cad0; font-size: 13px; }
@@ -117,7 +131,8 @@ button:disabled, select:disabled { opacity: .45; cursor: not-allowed; }
 
 .result { min-height: 190px; }
 .result-actions { display: flex; gap: 10px; align-items: center; }
-.transcription-progress {
+.transcription-progress,
+.transcription-error {
   display: grid;
   gap: 10px;
   margin-top: 20px;
@@ -126,6 +141,12 @@ button:disabled, select:disabled { opacity: .45; cursor: not-allowed; }
   border-radius: 12px;
   background: #15161a;
 }
+.transcription-error {
+  border-color: rgba(255, 157, 157, .35);
+}
+.transcription-error strong { color: #ffb6b6; font-size: 13px; }
+.transcription-error span { color: #e7e7eb; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.transcription-error small { color: #858994; font-size: 10px; line-height: 1.45; }
 .progress-meta { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .progress-meta strong { font-size: 12px; color: #d9dae0; }
 .progress-meta span { color: #a9a4ff; font-size: 12px; font-weight: 800; font-variant-numeric: tabular-nums; }
@@ -198,6 +219,9 @@ button:disabled, select:disabled { opacity: .45; cursor: not-allowed; }
 @media (max-width: 720px) {
   .hero-topline, .card.primary, .result-header, .engine-line { align-items: flex-start; flex-direction: column; }
   .result-actions { width: 100%; flex-wrap: wrap; }
+  .preset-row { grid-template-columns: 1fr; }
+  .preset-actions { flex-wrap: wrap; }
+  .preset-message { grid-column: 1; }
   .field-row, .field-row.three { grid-template-columns: 1fr; }
   .caption-row { grid-template-columns: 28px minmax(0, 1fr); }
   .caption-row small { grid-column: 2; }
