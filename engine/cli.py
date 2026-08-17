@@ -4,9 +4,9 @@ import argparse
 import json
 import sys
 
-from engine.segmentation import SegmentationConfig, segment_words
-
 from engine import __version__
+from engine.normalization import normalize_monetary_tokens
+from engine.segmentation import SegmentationConfig, segment_words
 from engine.transcription import (
     TranscriptionError,
     TranscriptionUnavailableError,
@@ -56,11 +56,16 @@ def transcribe(args: argparse.Namespace) -> int:
         print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False), file=sys.stderr)
         return 4
 
-    cues = segment_words(
+    segmentation_words = normalize_monetary_tokens(
         result.words,
+        enabled=args.monetary_thousands,
+    )
+    cues = segment_words(
+        segmentation_words,
         SegmentationConfig(
-            target_chars=args.target_chars,
-            hard_max_chars=args.hard_max_chars,
+            target_words=args.target_words,
+            ignore_prepositions=not args.count_prepositions,
+            preserve_punctuation=not args.no_punctuation,
         ),
     )
     emit(
@@ -68,6 +73,12 @@ def transcribe(args: argparse.Namespace) -> int:
             "ok": True,
             **result.to_dict(),
             "captions": [cue.to_dict() for cue in cues],
+            "segmentation": {
+                "target_words": args.target_words,
+                "ignore_prepositions": not args.count_prepositions,
+                "preserve_punctuation": not args.no_punctuation,
+                "monetary_thousands": args.monetary_thousands,
+            },
         }
     )
     return 0
@@ -92,8 +103,28 @@ def build_parser() -> argparse.ArgumentParser:
     transcribe_parser.add_argument("--language", default=None)
     transcribe_parser.add_argument("--device", choices=["auto", "cuda", "cpu"], default="auto")
     transcribe_parser.add_argument("--no-vad", action="store_true")
-    transcribe_parser.add_argument("--target-chars", type=int, default=12)
-    transcribe_parser.add_argument("--hard-max-chars", type=int, default=24)
+    transcribe_parser.add_argument(
+        "--target-words",
+        type=int,
+        choices=[1, 2, 3, 4],
+        default=2,
+        help="Quantidade de palavras principais por caption",
+    )
+    transcribe_parser.add_argument(
+        "--count-prepositions",
+        action="store_true",
+        help="Faz preposições consumirem vaga na contagem de palavras",
+    )
+    transcribe_parser.add_argument(
+        "--no-punctuation",
+        action="store_true",
+        help="Remove pontuação nas bordas das palavras das captions",
+    )
+    transcribe_parser.add_argument(
+        "--monetary-thousands",
+        action="store_true",
+        help="Normaliza valores monetários redondos para o formato N mil",
+    )
 
     return parser
 
