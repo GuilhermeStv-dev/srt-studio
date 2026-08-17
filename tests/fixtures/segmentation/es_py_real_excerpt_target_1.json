@@ -1,0 +1,41 @@
+{
+  "name": "ES-PY real excerpt · target 1",
+  "description": "Trecho real usado para calibrar D-012: alvo 1 deve respeitar cadência e coesão curta sem preservar frases longas.",
+  "source": "user-feedback-derived",
+  "config": {
+    "target_words": 1,
+    "ignore_prepositions": true,
+    "preserve_commas_periods": true
+  },
+  "tokens": [
+    {"text": "Hola,", "start": 0.00, "end": 0.22},
+    {"text": "¿qué", "start": 0.36, "end": 0.82},
+    {"text": "tal?", "start": 0.82, "end": 1.16},
+    {"text": "¿Quién", "start": 1.76, "end": 2.16},
+    {"text": "quiere", "start": 2.16, "end": 2.30},
+    {"text": "participar", "start": 2.30, "end": 2.68},
+    {"text": "en", "start": 2.68, "end": 2.98},
+    {"text": "un", "start": 2.98, "end": 3.10},
+    {"text": "juego?", "start": 3.10, "end": 3.42},
+    {"text": "¿Quién", "start": 3.62, "end": 3.82},
+    {"text": "se", "start": 3.82, "end": 3.88},
+    {"text": "anima?", "start": 3.88, "end": 4.28},
+    {"text": "Bueno,", "start": 4.46, "end": 4.86},
+    {"text": "acá", "start": 4.86, "end": 5.62},
+    {"text": "ya", "start": 5.62, "end": 5.82},
+    {"text": "encontramos", "start": 5.82, "end": 6.18}
+  ],
+  "expected_captions": [
+    "Hola,",
+    "¿qué tal?",
+    "¿Quién",
+    "quiere",
+    "participar en",
+    "un juego?",
+    "¿Quién se",
+    "anima?",
+    "Bueno,",
+    "acá ya",
+    "encontramos"
+  ]
+}
