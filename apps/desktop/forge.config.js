@@ -6,6 +6,11 @@ const repoRoot = path.resolve(__dirname, '../..')
 const engineRuntime = path.join(repoRoot, 'dist', 'engine', 'srt-studio-engine')
 const engineExe = path.join(engineRuntime, 'srt-studio-engine.exe')
 const releaseDir = path.join(repoRoot, 'release', 'forge')
+const brandingDir = path.join(repoRoot, 'build', 'branding')
+const brandIcon = path.join(brandingDir, 'srtx.ico')
+const brandPng = path.join(brandingDir, 'srtx.png')
+const brandIconScript = path.join(repoRoot, 'scripts', 'build-brand-icon.py')
+const projectPython = path.join(repoRoot, '.venv', 'Scripts', 'python.exe')
 
 function run(command, args, cwd) {
   execFileSync(command, args, {
@@ -30,7 +35,8 @@ module.exports = {
     ],
     name: 'SRTX',
     executableName: 'SRTX',
-    extraResource: [engineRuntime],
+    icon: brandIcon,
+    extraResource: [engineRuntime, brandIcon, brandPng],
     win32metadata: {
       CompanyName: 'Guilherme Estevão',
       FileDescription: 'SRTX — Guilherme Estevão Editor',
@@ -47,7 +53,9 @@ module.exports = {
         title: 'SRTX',
         authors: 'Guilherme Estevão',
         description: 'SRTX — transcrição local e geração de SRT para edição rápida no Premiere.',
-        setupExe: 'SRTX-Setup.exe'
+        exe: 'SRTX.exe',
+        setupExe: 'SRTX-Setup.exe',
+        setupIcon: brandIcon
       }
     }
   ],
@@ -63,9 +71,13 @@ module.exports = {
         ['-ExecutionPolicy', 'Bypass', '-File', path.join(repoRoot, 'scripts', 'build-engine.ps1')],
         repoRoot
       )
+      run(projectPython, [brandIconScript], repoRoot)
 
       if (!existsSync(engineExe)) {
         throw new Error(`Engine standalone não foi gerado em ${engineExe}`)
+      }
+      if (!existsSync(brandIcon) || !existsSync(brandPng)) {
+        throw new Error('Assets SRTX de ícone não foram gerados para o pacote Windows.')
       }
     }
   }

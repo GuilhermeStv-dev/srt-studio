@@ -5,6 +5,7 @@ on:
     paths:
       - 'engine/**'
       - 'scripts/build-engine.ps1'
+      - 'scripts/build-brand-icon.py'
       - 'scripts/engine_entry.py'
       - 'pyproject.toml'
       - 'package.json'
@@ -86,6 +87,29 @@ jobs:
           if (-not $content.Contains('Guilherme Estevão Editor')) { throw 'Branding SRTX não entrou no renderer de produção.' }
           if (-not $content.Contains('SRTX')) { throw 'Nome SRTX não entrou no renderer de produção.' }
           Write-Host 'Branding SRTX presente no renderer de produção.'
+      - name: Verify SRTX Windows icon
+        shell: pwsh
+        run: |
+          $generatedIcon = Get-Item '.\build\branding\srtx.ico' -ErrorAction Stop
+          if ($generatedIcon.Length -lt 10000) { throw 'ICO SRTX gerado parece inválido ou incompleto.' }
+
+          $exe = Get-ChildItem -Path .\release\forge -Recurse -Filter 'SRTX.exe' |
+            Where-Object { $_.FullName -match 'win32-x64' } |
+            Select-Object -First 1
+          if (-not $exe) { throw 'SRTX.exe empacotado não foi encontrado.' }
+
+          $resourceIcon = Join-Path $exe.DirectoryName 'resources\srtx.ico'
+          if (-not (Test-Path $resourceIcon)) { throw 'srtx.ico não foi copiado para resources do aplicativo.' }
+
+          Add-Type -AssemblyName System.Drawing
+          $icon = [System.Drawing.Icon]::ExtractAssociatedIcon($exe.FullName)
+          if (-not $icon) { throw 'SRTX.exe não possui ícone associado.' }
+          $bitmap = $icon.ToBitmap()
+          $pixel = $bitmap.GetPixel(1, 1)
+          if (-not ($pixel.B -gt ($pixel.R + 25) -and $pixel.B -gt ($pixel.G + 45))) {
+            throw "Ícone embutido no EXE não parece usar a identidade roxa SRTX. Pixel: R=$($pixel.R) G=$($pixel.G) B=$($pixel.B)"
+          }
+          Write-Host "Ícone SRTX embutido em $($exe.FullName)."
       - name: Verify Setup executable
         shell: pwsh
         run: |

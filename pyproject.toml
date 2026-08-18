@@ -18,6 +18,7 @@ transcription = [
 ]
 packaging = [
   "pyinstaller>=6.21,<7",
+  "pillow>=11,<13",
 ]
 
 # O repositório é um monorepo flat-layout. Sem descoberta explícita, setuptools
