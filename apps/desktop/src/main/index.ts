@@ -7,6 +7,7 @@ import path from 'node:path'
 if (squirrelStartup) app.quit()
 
 const PROGRESS_PREFIX = 'SRT_PROGRESS '
+const APP_USER_MODEL_ID = 'com.squirrel.SRTStudio.SRTStudio'
 
 type ActiveTranscription = {
   child: ChildProcessWithoutNullStreams
@@ -19,6 +20,14 @@ function repoRoot(): string {
   return app.isPackaged
     ? process.resourcesPath
     : path.resolve(__dirname, '../../../..')
+}
+
+function appIconPath(): string | undefined {
+  const candidate = app.isPackaged
+    ? path.join(process.resourcesPath, 'srtx.ico')
+    : path.join(repoRoot(), 'build', 'branding', 'srtx.ico')
+
+  return existsSync(candidate) ? candidate : undefined
 }
 
 function pythonExecutable(): string {
@@ -218,18 +227,31 @@ function runTranscriptionJson(
 }
 
 function createWindow(): void {
+  const icon = appIconPath()
   const win = new BrowserWindow({
     width: 1120,
     height: 780,
     minWidth: 860,
     minHeight: 620,
     backgroundColor: '#101114',
+    ...(icon ? { icon } : {}),
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
       contextIsolation: true,
       nodeIntegration: false
     }
   })
+
+  if (process.platform === 'win32') {
+    if (icon) win.setIcon(icon)
+    win.setAppDetails({
+      appId: APP_USER_MODEL_ID,
+      appIconPath: icon ?? process.execPath,
+      appIconIndex: 0,
+      relaunchCommand: process.execPath,
+      relaunchDisplayName: 'SRTX'
+    })
+  }
 
   if (process.env.ELECTRON_RENDERER_URL) {
     void win.loadURL(process.env.ELECTRON_RENDERER_URL)
@@ -238,7 +260,7 @@ function createWindow(): void {
   }
 }
 
-app.setAppUserModelId('com.squirrel.SRTStudio.SRTStudio')
+app.setAppUserModelId(APP_USER_MODEL_ID)
 
 app.whenReady().then(() => {
   ipcMain.handle('engine:health', async () => runEngineJson(['health']))
