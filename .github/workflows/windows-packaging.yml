@@ -99,7 +99,9 @@ jobs:
           if (-not $exe) { throw 'SRTX.exe empacotado não foi encontrado.' }
 
           $resourceIcon = Join-Path $exe.DirectoryName 'resources\srtx.ico'
+          $resourcePng = Join-Path $exe.DirectoryName 'resources\srtx.png'
           if (-not (Test-Path $resourceIcon)) { throw 'srtx.ico não foi copiado para resources do aplicativo.' }
+          if (-not (Test-Path $resourcePng)) { throw 'srtx.png não foi copiado para resources do aplicativo.' }
 
           Add-Type -AssemblyName System.Drawing
           $icon = [System.Drawing.Icon]::ExtractAssociatedIcon($exe.FullName)
@@ -110,21 +112,19 @@ jobs:
             throw "Ícone embutido no EXE não parece usar a identidade roxa SRTX. Pixel: R=$($pixel.R) G=$($pixel.G) B=$($pixel.B)"
           }
           Write-Host "Ícone SRTX embutido em $($exe.FullName)."
-      - name: Verify taskbar icon wiring
+      - name: Verify clean Windows taskbar identity
         shell: pwsh
         run: |
           $main = Get-Content -Path .\apps\desktop\out\main\index.js -Raw
-          if (-not $main.Contains('srtx.ico')) { throw 'Main bundle não referencia o ícone SRTX da janela.' }
+          if (-not $main.Contains('com.squirrel.SRTX.SRTX')) { throw 'Main bundle não usa o AppUserModelID final do SRTX.' }
+          if ($main.Contains('com.squirrel.SRTStudio.SRTStudio')) { throw 'Main bundle ainda contém a identidade legada SRTStudio.' }
+          if (-not $main.Contains('srtx.png')) { throw 'BrowserWindow não referencia o PNG SRTX para o ícone da janela.' }
           if (-not $main.Contains('setAppDetails')) { throw 'Main bundle não configura os detalhes da taskbar do Windows.' }
           if (-not $main.Contains('setIcon')) { throw 'Main bundle não aplica explicitamente o ícone ao BrowserWindow.' }
 
-          $exe = Get-ChildItem -Path .\release\forge -Recurse -Filter 'SRTX.exe' |
-            Where-Object { $_.FullName -match 'win32-x64' } |
-            Select-Object -First 1
-          if (-not $exe) { throw 'SRTX.exe empacotado não foi encontrado para validar resources.' }
-          $resourceIcon = Join-Path $exe.DirectoryName 'resources\srtx.ico'
-          if (-not (Test-Path $resourceIcon)) { throw 'Ícone da janela não está disponível em resources\srtx.ico.' }
-          Write-Host 'BrowserWindow e taskbar estão ligados explicitamente ao ícone SRTX.'
+          $nupkg = Get-ChildItem -Path .\release\forge -Recurse -Filter 'SRTX-*-full.nupkg' | Select-Object -First 1
+          if (-not $nupkg) { throw 'Pacote Squirrel com identidade SRTX não foi encontrado.' }
+          Write-Host 'Identidade Squirrel, AppUserModelID e ícone da janela estão alinhados em SRTX.'
       - name: Verify Setup executable
         shell: pwsh
         run: |

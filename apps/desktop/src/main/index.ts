@@ -7,7 +7,7 @@ import path from 'node:path'
 if (squirrelStartup) app.quit()
 
 const PROGRESS_PREFIX = 'SRT_PROGRESS '
-const APP_USER_MODEL_ID = 'com.squirrel.SRTStudio.SRTStudio'
+const APP_USER_MODEL_ID = 'com.squirrel.SRTX.SRTX'
 
 type ActiveTranscription = {
   child: ChildProcessWithoutNullStreams
@@ -24,8 +24,8 @@ function repoRoot(): string {
 
 function appIconPath(): string | undefined {
   const candidate = app.isPackaged
-    ? path.join(process.resourcesPath, 'srtx.ico')
-    : path.join(repoRoot(), 'build', 'branding', 'srtx.ico')
+    ? path.join(process.resourcesPath, 'srtx.png')
+    : path.join(repoRoot(), 'build', 'branding', 'srtx.png')
 
   return existsSync(candidate) ? candidate : undefined
 }
@@ -246,7 +246,7 @@ function createWindow(): void {
     if (icon) win.setIcon(icon)
     win.setAppDetails({
       appId: APP_USER_MODEL_ID,
-      appIconPath: icon ?? process.execPath,
+      appIconPath: process.execPath,
       appIconIndex: 0,
       relaunchCommand: process.execPath,
       relaunchDisplayName: 'SRTX'
@@ -260,6 +260,7 @@ function createWindow(): void {
   }
 }
 
+app.setName('SRTX')
 app.setAppUserModelId(APP_USER_MODEL_ID)
 
 app.whenReady().then(() => {

@@ -48,8 +48,7 @@ module.exports = {
       name: '@electron-forge/maker-squirrel',
       platforms: ['win32'],
       config: {
-        // Mantém o ID interno para preservar o caminho de atualização da instalação anterior.
-        name: 'SRTStudio',
+        name: 'SRTX',
         title: 'SRTX',
         authors: 'Guilherme Estevão',
         description: 'SRTX — transcrição local e geração de SRT para edição rápida no Premiere.',
