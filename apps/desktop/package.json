@@ -1,10 +1,10 @@
 {
   "name": "@srt-studio/desktop",
-  "productName": "SRT Studio",
-  "version": "0.1.2",
+  "productName": "SRTX",
+  "version": "0.1.3",
   "private": true,
   "author": "Guilherme Estevão",
-  "description": "Desktop local para transcrição e geração de SRT Premiere-safe.",
+  "description": "SRTX — editor local para transcrição e geração de SRT Premiere-safe.",
   "main": "./out/main/index.js",
   "scripts": {
     "electron:install": "install-electron --no",
