@@ -78,15 +78,23 @@ jobs:
             throw 'electron-squirrel-startup permaneceu como dependência externa no main bundle.'
           }
           Write-Host 'Squirrel startup está embutido no main bundle.'
+      - name: Verify SRTX branding in packaged renderer
+        shell: pwsh
+        run: |
+          $rendererFiles = Get-ChildItem -Path .\apps\desktop\out\renderer -Recurse -File
+          $content = ($rendererFiles | ForEach-Object { Get-Content $_.FullName -Raw -ErrorAction SilentlyContinue }) -join "`n"
+          if (-not $content.Contains('Guilherme Estevão Editor')) { throw 'Branding SRTX não entrou no renderer de produção.' }
+          if (-not $content.Contains('SRTX')) { throw 'Nome SRTX não entrou no renderer de produção.' }
+          Write-Host 'Branding SRTX presente no renderer de produção.'
       - name: Verify Setup executable
         shell: pwsh
         run: |
-          $setup = Get-ChildItem -Path .\release\forge -Recurse -Filter 'SRT-Studio-Setup.exe' | Select-Object -First 1
-          if (-not $setup) { throw 'SRT-Studio-Setup.exe não foi gerado.' }
+          $setup = Get-ChildItem -Path .\release\forge -Recurse -Filter 'SRTX-Setup.exe' | Select-Object -First 1
+          if (-not $setup) { throw 'SRTX-Setup.exe não foi gerado.' }
           Write-Host "Installer: $($setup.FullName)"
       - name: Upload Windows installer artifact
         uses: actions/upload-artifact@v4
         with:
-          name: srt-studio-windows-installer
+          name: srtx-windows-installer
           path: release/forge/make/squirrel.windows/x64/**
           if-no-files-found: error
