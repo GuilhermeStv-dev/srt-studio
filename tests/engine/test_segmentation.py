@@ -266,6 +266,18 @@ class SegmentationTests(unittest.TestCase):
         for left, right in zip(result, result[1:]):
             self.assertLessEqual(left.end, right.start)
 
+    def test_repairs_collapsed_caption_duration_after_overlap_adjustment(self) -> None:
+        result = segment_words(
+            words(
+                ("uno", 0.00, 1.00),
+                ("dos", 0.90, 0.95),
+            ),
+            SegmentationConfig(target_words=1, ignore_prepositions=False),
+        )
+        self.assertEqual([cue.text for cue in result], ["uno", "dos"])
+        self.assertEqual(result[1].start, 1.0)
+        self.assertEqual(result[1].end, 1.05)
+
 
 if __name__ == "__main__":
     unittest.main()

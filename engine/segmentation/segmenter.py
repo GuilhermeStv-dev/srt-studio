@@ -72,6 +72,7 @@ _LEXICAL_EDGE_PUNCTUATION = re.compile(r"^[¿¡\"'“”‘’([{]+|[?!,.;:…\"
 _OPTIONAL_EDGE_PUNCTUATION = re.compile(r"^[,.]+|[,.]+$")
 _TERMINAL_PUNCTUATION = re.compile(r"[?!]$")
 _SOFT_PUNCTUATION = re.compile(r"[,.]$")
+_MIN_SAFE_DURATION = 0.05
 
 
 @dataclass(frozen=True, slots=True)
@@ -379,7 +380,7 @@ def segment_words(
     cues: list[CaptionCue] = []
     previous_cue_end = -math.inf
 
-    for group in groups:
+    for index, group in enumerate(groups):
         text = _join(group, cfg)
         if not text:
             continue
@@ -391,7 +392,11 @@ def segment_words(
             # Pequenos overlaps podem vir do ASR. Ajustamos somente o cue derivado.
             start_time = previous_cue_end
         if end_time <= start_time:
-            raise ValueError(f"Cue sem duração positiva: {text}")
+            next_group_start = groups[index + 1][0].start if index + 1 < len(groups) else None
+            if next_group_start is not None and next_group_start > start_time:
+                end_time = max(next_group_start, start_time + _MIN_SAFE_DURATION)
+            else:
+                end_time = start_time + _MIN_SAFE_DURATION
 
         cues.append(
             CaptionCue(

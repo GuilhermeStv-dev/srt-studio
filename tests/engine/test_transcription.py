@@ -126,14 +126,29 @@ class WordTokenCollectionTests(unittest.TestCase):
         self.assertEqual(len(words), 1)
         self.assertEqual(words[0].text, "ok")
 
-    def test_rejects_zero_duration(self) -> None:
+    def test_normalizes_zero_duration_using_minimum_interval(self) -> None:
         segments = [
             SimpleNamespace(
                 words=[SimpleNamespace(word="hola", start=1.0, end=1.0, probability=0.9)]
             )
         ]
-        with self.assertRaises(TranscriptionError):
-            collect_word_tokens(segments)
+        words = collect_word_tokens(segments)
+        self.assertEqual(len(words), 1)
+        self.assertEqual(words[0].start, 1.0)
+        self.assertEqual(words[0].end, 1.05)
+
+    def test_normalizes_zero_duration_using_next_word_start_when_available(self) -> None:
+        segments = [
+            SimpleNamespace(
+                words=[
+                    SimpleNamespace(word="hola", start=1.0, end=1.0, probability=0.9),
+                    SimpleNamespace(word="mundo", start=1.08, end=1.30, probability=0.8),
+                ]
+            )
+        ]
+        words = collect_word_tokens(segments)
+        self.assertEqual([word.text for word in words], ["hola", "mundo"])
+        self.assertEqual(words[0].end, 1.08)
 
     def test_rejects_regressive_start(self) -> None:
         segments = [
