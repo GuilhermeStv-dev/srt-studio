@@ -3,6 +3,8 @@ name: Windows packaging
 on:
   push:
     branches: [main]
+    tags:
+      - 'v*'
   pull_request:
     paths:
       - 'engine/**'
@@ -16,6 +18,9 @@ on:
       - 'apps/desktop/**'
       - '.github/workflows/windows-packaging.yml'
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   windows-installer:
@@ -136,8 +141,29 @@ jobs:
           if (-not $setup) { throw 'SRTX-Setup.exe não foi gerado.' }
           Write-Host "Installer: $($setup.FullName)"
       - name: Upload Windows installer artifact
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: srtx-windows-installer
           path: release/forge/make/squirrel.windows/x64/**
           if-no-files-found: error
+      - name: Publish Windows installer release
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $releaseNotes = @'
+            Build interno do SRTX para Windows.
+
+            Baixe `SRTX-Setup.exe` para instalar. O pacote também inclui os arquivos Squirrel (`RELEASES` e `.nupkg`) usados pelo instalador.
+          '@
+
+          gh release create $env:GITHUB_REF_NAME `
+            --repo $env:GITHUB_REPOSITORY `
+            --title "SRTX $env:GITHUB_REF_NAME" `
+            --notes $releaseNotes `
+            --prerelease `
+            release/forge/make/squirrel.windows/x64/SRTX-Setup.exe `
+            release/forge/make/squirrel.windows/x64/SRTX-*-full.nupkg `
+            release/forge/make/squirrel.windows/x64/RELEASES
