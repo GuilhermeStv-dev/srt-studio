@@ -92,4 +92,14 @@ Antes de distribuição pública, avaliar certificado de code signing e configur
 
 ## CI
 
-`.github/workflows/windows-packaging.yml` constrói o instalador em `windows-latest` e publica os artefatos Squirrel para teste.
+`.github/workflows/windows-packaging.yml` constrói o instalador em `windows-latest`.
+
+Em pushes para `main`, o workflow valida o instalador e tenta publicar um artifact temporário do GitHub Actions. Esse artifact é conveniente, mas pode falhar se a conta atingir a cota de armazenamento do Actions.
+
+Em tags `v*`, o workflow também publica uma GitHub Release permanente com:
+
+- `SRTX-Setup.exe`;
+- `SRTX-*-full.nupkg`;
+- `RELEASES`.
+
+Para builds que precisam ficar disponíveis para download depois, a Release é a fonte preferida.
