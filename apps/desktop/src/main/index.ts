@@ -23,9 +23,10 @@ function repoRoot(): string {
 }
 
 function appIconPath(): string | undefined {
+  const iconFile = process.platform === 'win32' ? 'srtx.ico' : 'srtx.png'
   const candidate = app.isPackaged
-    ? path.join(process.resourcesPath, 'srtx.png')
-    : path.join(repoRoot(), 'build', 'branding', 'srtx.png')
+    ? path.join(process.resourcesPath, iconFile)
+    : path.join(repoRoot(), 'build', 'branding', iconFile)
 
   return existsSync(candidate) ? candidate : undefined
 }
@@ -246,7 +247,7 @@ function createWindow(): void {
     if (icon) win.setIcon(icon)
     win.setAppDetails({
       appId: APP_USER_MODEL_ID,
-      appIconPath: process.execPath,
+      appIconPath: icon ?? process.execPath,
       appIconIndex: 0,
       relaunchCommand: process.execPath,
       relaunchDisplayName: 'SRTX'

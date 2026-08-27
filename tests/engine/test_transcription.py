@@ -150,6 +150,20 @@ class WordTokenCollectionTests(unittest.TestCase):
         self.assertEqual([word.text for word in words], ["hola", "mundo"])
         self.assertEqual(words[0].end, 1.08)
 
+    def test_repairs_duration_collapsed_by_millisecond_rounding(self) -> None:
+        segments = [
+            SimpleNamespace(
+                words=[
+                    SimpleNamespace(word=" ¿Tenés", start=59.4401, end=59.4404, probability=0.9),
+                    SimpleNamespace(word=" hambre?", start=59.62, end=60.1, probability=0.8),
+                ]
+            )
+        ]
+        words = collect_word_tokens(segments)
+        self.assertEqual(words[0].text, "¿Tenés")
+        self.assertEqual(words[0].start, 59.44)
+        self.assertEqual(words[0].end, 59.62)
+
     def test_rejects_regressive_start(self) -> None:
         segments = [
             SimpleNamespace(

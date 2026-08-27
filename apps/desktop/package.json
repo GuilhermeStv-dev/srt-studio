@@ -8,7 +8,8 @@
   "main": "./out/main/index.js",
   "scripts": {
     "electron:install": "install-electron --no",
-    "predev": "npm run electron:install",
+    "build:icon": "node ../../scripts/build-brand-icon.mjs",
+    "predev": "npm run build:icon && npm run electron:install",
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "typecheck": "tsc --noEmit",

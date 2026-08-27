@@ -1,6 +1,6 @@
 # Estado atual
 
-Última atualização: 2026-08-17
+Última atualização: 2026-08-26
 
 ## Fase
 
@@ -32,6 +32,7 @@
 - [x] UTF-8 preservando `¿`, `¡` e acentos
 - [x] progresso real durante inferência
 - [x] cancelamento do subprocesso ativo
+- [x] reparo de timestamps colapsados por arredondamento, incluindo caso `¿Tenés` com duração zero
 - [ ] concluir CUDA/cuDNN para inferência GPU na RTX
 
 ## Segmentação ES-PY — D-012
@@ -70,6 +71,7 @@ Cada novo corte considerado ruim deve virar uma fixture mínima antes de alterar
 - [x] renderer e validação final
 - [x] UTF-8 sem BOM
 - [x] CRLF
+- [x] stdin/stdout/stderr do CLI forçados em UTF-8
 - [x] exportação pela interface
 - [x] `Save As`
 - [x] confirmação explícita de sobrescrita
@@ -107,7 +109,11 @@ Cada novo corte considerado ruim deve virar uma fixture mínima antes de alterar
 - [x] configuração Electron Forge + Squirrel criada
 - [x] comando `npm run make:win`
 - [x] CI preparada para gerar e publicar artefato do instalador
-- [ ] primeiro `SRT-Studio-Setup.exe` precisa passar pela CI
+- [x] janela/taskbar do Windows apontam para o `.ico` do SRTX quando disponível
+- [x] `npm run dev` gera assets de ícone SRTX antes de abrir o Electron
+- [x] primeiro `SRTX-Setup.exe` gerado localmente em Windows
+- [x] engine standalone validado dentro do pacote local
+- [ ] `SRTX-Setup.exe` precisa passar pela CI e ficar disponível como artefato GitHub
 - [ ] instalar e validar o Setup em Windows real
 - [ ] validar transcrição/exportação sem Python/Node instalados
 - [ ] definir política final de cache/download de modelos
@@ -132,7 +138,7 @@ As regressões cobrem transcrição, segmentação inteligente, pontuação, moe
 
 ## Próximos checkpoints
 
-1. gerar o primeiro `SRT-Studio-Setup.exe` pela CI Windows;
+1. gerar o primeiro `SRTX-Setup.exe` pela CI Windows;
 2. instalar o Setup e executar o fluxo completo fora de `npm run dev`;
 3. importar um SRT no Premiere e fechar Fase 4;
 4. validar cancelamento/retry/presets no aplicativo instalado;
