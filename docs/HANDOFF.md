@@ -6,6 +6,14 @@ O SRT Studio já possui fluxo funcional de ponta a ponta: mídia local → `fast
 
 Repositório: `GuilhermeStv-dev/srt-studio`. A `main` é o estado estável; mudanças devem usar branch + PR.
 
+Checkpoint de 2026-08-26:
+
+- erro real `Duração inválida em '¿Tenés': 59.44 -> 59.44` tratado como timestamp colapsado;
+- `collect_word_tokens` mantém regressão para colapso causado por arredondamento em milissegundos;
+- `engine.cli` força UTF-8 em stdin/stdout/stderr para evitar `¿Qué` virar `Â¿QuÃ©` em exportações via stdin;
+- Electron usa `.ico` no Windows para janela/taskbar quando o asset existe;
+- `npm run dev` gera `build/branding/srtx.ico` e `srtx.png` por script Node antes de abrir o app.
+
 Fases atuais:
 
 - Fase 2 — transcrição: concluída funcionalmente;
@@ -99,10 +107,11 @@ A fixture pode incluir `normalization.monetary_thousands` quando o caso precisar
 
 ## Próximo objetivo imediato
 
-1. adicionar novos trechos reais ao corpus de fixtures conforme o usuário apontar cortes ruins;
-2. não ajustar D-012 sem regressão correspondente;
-3. confirmar importação SRT no Premiere;
-4. validar cancelamento/retry/presets em uso real;
-5. concluir limpeza visual final;
-6. concluir CUDA/cuDNN;
-7. seguir para empacotamento/instalador Windows.
+1. reinstalar/rodar uma build que contenha o commit mais recente antes de retestar o arquivo do usuário;
+2. adicionar novos trechos reais ao corpus de fixtures conforme o usuário apontar cortes ruins;
+3. não ajustar D-012 sem regressão correspondente;
+4. confirmar importação SRT no Premiere;
+5. validar cancelamento/retry/presets em uso real;
+6. concluir limpeza visual final;
+7. concluir CUDA/cuDNN;
+8. seguir para empacotamento/instalador Windows.

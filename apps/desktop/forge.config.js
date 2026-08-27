@@ -9,7 +9,7 @@ const releaseDir = path.join(repoRoot, 'release', 'forge')
 const brandingDir = path.join(repoRoot, 'build', 'branding')
 const brandIcon = path.join(brandingDir, 'srtx.ico')
 const brandPng = path.join(brandingDir, 'srtx.png')
-const brandIconScript = path.join(repoRoot, 'scripts', 'build-brand-icon.py')
+const brandIconScript = path.join(repoRoot, 'scripts', 'build-brand-icon.mjs')
 const projectPython = path.join(repoRoot, '.venv', 'Scripts', 'python.exe')
 
 function run(command, args, cwd) {
@@ -70,7 +70,7 @@ module.exports = {
         ['-ExecutionPolicy', 'Bypass', '-File', path.join(repoRoot, 'scripts', 'build-engine.ps1')],
         repoRoot
       )
-      run(projectPython, [brandIconScript], repoRoot)
+      run(process.execPath, [brandIconScript], repoRoot)
 
       if (!existsSync(engineExe)) {
         throw new Error(`Engine standalone não foi gerado em ${engineExe}`)

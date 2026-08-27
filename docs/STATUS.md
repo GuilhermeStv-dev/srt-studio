@@ -1,6 +1,6 @@
 # Estado atual
 
-Última atualização: 2026-08-17
+Última atualização: 2026-08-26
 
 ## Fase
 
@@ -32,6 +32,7 @@
 - [x] UTF-8 preservando `¿`, `¡` e acentos
 - [x] progresso real durante inferência
 - [x] cancelamento do subprocesso ativo
+- [x] reparo de timestamps colapsados por arredondamento, incluindo caso `¿Tenés` com duração zero
 - [ ] concluir CUDA/cuDNN para inferência GPU na RTX
 
 ## Segmentação ES-PY — D-012
@@ -70,6 +71,7 @@ Cada novo corte considerado ruim deve virar uma fixture mínima antes de alterar
 - [x] renderer e validação final
 - [x] UTF-8 sem BOM
 - [x] CRLF
+- [x] stdin/stdout/stderr do CLI forçados em UTF-8
 - [x] exportação pela interface
 - [x] `Save As`
 - [x] confirmação explícita de sobrescrita
@@ -107,6 +109,8 @@ Cada novo corte considerado ruim deve virar uma fixture mínima antes de alterar
 - [x] configuração Electron Forge + Squirrel criada
 - [x] comando `npm run make:win`
 - [x] CI preparada para gerar e publicar artefato do instalador
+- [x] janela/taskbar do Windows apontam para o `.ico` do SRTX quando disponível
+- [x] `npm run dev` gera assets de ícone SRTX antes de abrir o Electron
 - [ ] primeiro `SRT-Studio-Setup.exe` precisa passar pela CI
 - [ ] instalar e validar o Setup em Windows real
 - [ ] validar transcrição/exportação sem Python/Node instalados

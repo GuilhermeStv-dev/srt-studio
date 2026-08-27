@@ -20,6 +20,13 @@ from engine.transcription import (
 _PROGRESS_PREFIX = "SRT_PROGRESS "
 
 
+def configure_utf8_stdio() -> None:
+    for stream in (sys.stdin, sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            reconfigure(encoding="utf-8")
+
+
 def emit(payload: object) -> None:
     print(json.dumps(payload, ensure_ascii=False))
 
@@ -68,23 +75,28 @@ def transcribe(args: argparse.Namespace) -> int:
             vad_filter=not args.no_vad,
             progress_callback=progress_callback,
         )
-    except (FileNotFoundError, TranscriptionError, TranscriptionUnavailableError) as exc:
+
+        repaired_words = merge_fragmented_currency_numbers(result.words)
+        segmentation_words = normalize_monetary_tokens(
+            repaired_words,
+            format_thousands=args.monetary_thousands,
+        )
+        cues = segment_words(
+            segmentation_words,
+            SegmentationConfig(
+                target_words=args.target_words,
+                ignore_prepositions=not args.count_prepositions,
+                preserve_commas_periods=not args.remove_commas_periods,
+            ),
+        )
+    except (
+        FileNotFoundError,
+        TranscriptionError,
+        TranscriptionUnavailableError,
+        ValueError,
+    ) as exc:
         print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False), file=sys.stderr)
         return 4
-
-    repaired_words = merge_fragmented_currency_numbers(result.words)
-    segmentation_words = normalize_monetary_tokens(
-        repaired_words,
-        format_thousands=args.monetary_thousands,
-    )
-    cues = segment_words(
-        segmentation_words,
-        SegmentationConfig(
-            target_words=args.target_words,
-            ignore_prepositions=not args.count_prepositions,
-            preserve_commas_periods=not args.remove_commas_periods,
-        ),
-    )
     if args.progress_events:
         emit_progress("completed", 1.0)
     emit(
@@ -205,6 +217,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
+    configure_utf8_stdio()
     args = build_parser().parse_args()
     if args.command == "health":
         return health()
