@@ -13,6 +13,7 @@ Checkpoint de 2026-08-26:
 - `engine.cli` força UTF-8 em stdin/stdout/stderr para evitar `¿Qué` virar `Â¿QuÃ©` em exportações via stdin;
 - Electron usa `.ico` no Windows para janela/taskbar quando o asset existe;
 - `npm run dev` gera `build/branding/srtx.ico` e `srtx.png` por script Node antes de abrir o app.
+- `npm run make:win` gerou `SRTX-Setup.exe` localmente e validou o engine standalone; falta validar o artefato da CI e instalação limpa.
 
 Fases atuais:
 
@@ -114,4 +115,4 @@ A fixture pode incluir `normalization.monetary_thousands` quando o caso precisar
 5. validar cancelamento/retry/presets em uso real;
 6. concluir limpeza visual final;
 7. concluir CUDA/cuDNN;
-8. seguir para empacotamento/instalador Windows.
+8. baixar o artefato `srtx-windows-installer` da CI após merge e validar instalação limpa.

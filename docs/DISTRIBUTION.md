@@ -55,7 +55,7 @@ O maker Squirrel gera o instalador em `release/forge/make/squirrel.windows/x64/`
 Arquivo principal esperado:
 
 ```text
-SRT-Studio-Setup.exe
+SRTX-Setup.exe
 ```
 
 ## Modelos Whisper
@@ -78,7 +78,7 @@ Antes de distribuição pública, avaliar certificado de code signing e configur
 
 ## Validação obrigatória antes de considerar a Fase 8 concluída
 
-- instalar `SRT-Studio-Setup.exe` em Windows sem ambiente de desenvolvimento do projeto;
+- instalar `SRTX-Setup.exe` em Windows sem ambiente de desenvolvimento do projeto;
 - abrir o aplicativo pelo atalho/menu iniciar;
 - selecionar ou arrastar mídia;
 - verificar runtime sem depender de Python do sistema;

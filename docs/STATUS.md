@@ -111,7 +111,9 @@ Cada novo corte considerado ruim deve virar uma fixture mínima antes de alterar
 - [x] CI preparada para gerar e publicar artefato do instalador
 - [x] janela/taskbar do Windows apontam para o `.ico` do SRTX quando disponível
 - [x] `npm run dev` gera assets de ícone SRTX antes de abrir o Electron
-- [ ] primeiro `SRT-Studio-Setup.exe` precisa passar pela CI
+- [x] primeiro `SRTX-Setup.exe` gerado localmente em Windows
+- [x] engine standalone validado dentro do pacote local
+- [ ] `SRTX-Setup.exe` precisa passar pela CI e ficar disponível como artefato GitHub
 - [ ] instalar e validar o Setup em Windows real
 - [ ] validar transcrição/exportação sem Python/Node instalados
 - [ ] definir política final de cache/download de modelos
@@ -136,7 +138,7 @@ As regressões cobrem transcrição, segmentação inteligente, pontuação, moe
 
 ## Próximos checkpoints
 
-1. gerar o primeiro `SRT-Studio-Setup.exe` pela CI Windows;
+1. gerar o primeiro `SRTX-Setup.exe` pela CI Windows;
 2. instalar o Setup e executar o fluxo completo fora de `npm run dev`;
 3. importar um SRT no Premiere e fechar Fase 4;
 4. validar cancelamento/retry/presets no aplicativo instalado;
