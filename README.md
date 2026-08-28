@@ -4,19 +4,31 @@ Aplicativo desktop Windows para transformar áudio/vídeo em **SRT pronto para e
 
 ## Estado atual
 
-**Fase 2 — transcrição em validação real** e **Fase 3 — segmentação ES-PY iniciada**. A Fundação já está concluída.
+Build interno funcional para Windows disponível em GitHub Releases.
+
+Download: [`SRTX-Setup.exe`](https://github.com/GuilhermeStv-dev/srt-studio/releases/download/v0.2.0-internal.1/SRTX-Setup.exe)
+
+Status resumido:
+
+- transcrição local com `faster-whisper` funcionando;
+- segmentação ES-PY funcional e calibrada por regressões;
+- exportação SRT Premiere-safe funcionando no Windows;
+- desktop Electron funcional com seleção de mídia, preview, retry, progresso, cancelamento e exportação;
+- instalador Windows `SRTX-Setup.exe` gerado e validado por CI;
+- pendente: validação final de instalação limpa, importação no Adobe Premiere e assinatura digital antes de distribuição pública.
 
 Esta base já contém:
 
 - monorepo com aplicativo desktop em Electron + React + TypeScript;
 - engine Python isolado da interface;
-- contratos iniciais de `WordToken` e `CaptionCue`;
-- normalização básica de texto;
-- geração e validação estrutural de SRT;
+- contratos de `WordToken` e `CaptionCue`;
+- normalização de texto, pontuação e valores monetários;
+- segmentação inteligente para espanhol paraguaio;
+- geração e validação estrutural de SRT Premiere-safe;
 - health-check do engine via CLI;
 - ponte IPC Electron → Python;
-- 24 testes unitários do engine;
-- CI inicial para engine Python e typecheck/build do desktop.
+- suíte de regressão do engine;
+- CI para engine Python, typecheck/build do desktop e packaging Windows.
 
 ## Antes de desenvolver
 
@@ -122,4 +134,4 @@ O script cria uma `.venv`, instala `faster-whisper`, roda os testes e verifica o
 
 ## Próximo passo
 
-Validar uma transcrição ES-PY real no Windows, revisar o preview de captions e transformar os casos ruins em testes de regressão para calibrar o segmentador. Depois, avançar para exportação SRT pela interface conforme `docs/ROADMAP.md`.
+Instalar o `SRTX-Setup.exe` em um Windows limpo, rodar uma transcrição real fora do ambiente de desenvolvimento e importar o SRT exportado no Adobe Premiere.

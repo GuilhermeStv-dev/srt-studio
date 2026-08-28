@@ -114,7 +114,7 @@ Cada novo corte considerado ruim deve virar uma fixture mínima antes de alterar
 - [x] primeiro `SRTX-Setup.exe` gerado localmente em Windows
 - [x] engine standalone validado dentro do pacote local
 - [x] `SRTX-Setup.exe` passou pela CI Windows
-- [ ] publicar `SRTX-Setup.exe` em GitHub Release permanente
+- [x] `SRTX-Setup.exe` publicado em GitHub Release permanente: `v0.2.0-internal.1`
 - [ ] instalar e validar o Setup em Windows real
 - [ ] validar transcrição/exportação sem Python/Node instalados
 - [ ] definir política final de cache/download de modelos
@@ -139,13 +139,12 @@ As regressões cobrem transcrição, segmentação inteligente, pontuação, moe
 
 ## Próximos checkpoints
 
-1. publicar `SRTX-Setup.exe` em uma GitHub Release;
-2. instalar o Setup e executar o fluxo completo fora de `npm run dev`;
-3. importar um SRT no Premiere e fechar Fase 4;
-4. validar cancelamento/retry/presets no aplicativo instalado;
-5. concluir os últimos sinais de build/dev da Fase 6;
-6. concluir CUDA/cuDNN como melhoria de desempenho;
-7. decidir assinatura digital e política de atualização antes da distribuição pública.
+1. instalar o Setup e executar o fluxo completo fora de `npm run dev`;
+2. importar um SRT no Premiere e fechar Fase 4;
+3. validar cancelamento/retry/presets no aplicativo instalado;
+4. concluir os últimos sinais de build/dev da Fase 6;
+5. concluir CUDA/cuDNN como melhoria de desempenho;
+6. decidir assinatura digital e política de atualização antes da distribuição pública.
 
 ## Preview local
 

@@ -103,3 +103,9 @@ Em tags `v*`, o workflow também publica uma GitHub Release permanente com:
 - `RELEASES`.
 
 Para builds que precisam ficar disponíveis para download depois, a Release é a fonte preferida.
+
+Release interna atual:
+
+```text
+https://github.com/GuilhermeStv-dev/srt-studio/releases/tag/v0.2.0-internal.1
+```
