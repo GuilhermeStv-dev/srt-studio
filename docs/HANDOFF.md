@@ -15,7 +15,7 @@ Checkpoint de 2026-08-26:
 - `npm run dev` gera `build/branding/srtx.ico` e `srtx.png` por script Node antes de abrir o app.
 - `npm run make:win` gerou `SRTX-Setup.exe` localmente e validou o engine standalone;
 - a CI Windows gerou e validou `SRTX-Setup.exe`, mas o upload como Actions artifact pode falhar quando a cota de artifacts do GitHub Actions estiver cheia;
-- builds para download persistente devem ser publicados como GitHub Release por tag `v*`.
+- build interno `v0.2.0-internal.1` publicado em GitHub Release com `SRTX-Setup.exe`.
 
 Fases atuais:
 
@@ -117,4 +117,4 @@ A fixture pode incluir `normalization.monetary_thousands` quando o caso precisar
 5. validar cancelamento/retry/presets em uso real;
 6. concluir limpeza visual final;
 7. concluir CUDA/cuDNN;
-8. baixar o `SRTX-Setup.exe` da GitHub Release e validar instalação limpa.
+8. baixar o `SRTX-Setup.exe` da GitHub Release `v0.2.0-internal.1` e validar instalação limpa.
