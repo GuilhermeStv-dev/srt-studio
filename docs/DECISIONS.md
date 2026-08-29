@@ -103,3 +103,13 @@ A primeira versão usava aproximadamente 12 caracteres por caption como preferê
 **Otimização:** escolher fronteiras globalmente por score/ programação dinâmica, em vez de greedy rígido por contagem.
 
 **Regras estruturais preservadas:** moeda continua sempre isolada; `¿ ? ¡ !` continuam obrigatórios; SRT continua sem overlap/duração zero/timestamp regressivo.
+
+## D-013 — Trava visual universal de 17 caracteres
+
+**Decisão:** captions com mais de uma palavra física não podem ultrapassar 17 caracteres depois da renderização, contando o espaço entre palavras e a pontuação preservada.
+
+**Motivo:** impedir casos visualmente largos demais em legendas dinâmicas, como `CONFIANZUDO TAMBIÉN`, mesmo quando a contagem de palavras, a cadência ou a coesão curta permitiriam manter o par junto.
+
+**Interação com preposições:** ignorar preposições na contagem continua válido, mas não pode furar a parede visual. Se `palavra + espaço + preposição` passar de 17 caracteres, o segmentador deve separar.
+
+**Exceção:** uma palavra única acima de 17 caracteres permanece permitida, porque o engine não deve alterar ou quebrar internamente uma palavra reconhecida apenas para caber no limite.

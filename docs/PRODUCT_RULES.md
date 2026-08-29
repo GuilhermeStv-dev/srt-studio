@@ -9,8 +9,11 @@
 - A segmentação deve combinar **alvo de palavras + pausa real entre palavras + pontuação + coesão curta da expressão** para escolher a melhor fronteira.
 - No alvo de 1 palavra, pares curtos podem permanecer juntos quando separar pioraria a leitura e a fala estiver colada, por exemplo `¿qué tal?`, `participar en`, `un juego?`, `¿Quién se` e `acá ya`.
 - A expansão inteligente deve ser curta: o alvo de 1 palavra pode formar um par, mas não deve preservar automaticamente uma frase de três palavras só porque ela é semanticamente completa. Ex.: `¿Quién se anima?` pode virar `¿Quién se` / `anima?`.
+- A segmentação possui uma **trava visual universal de 17 caracteres para captions com mais de uma palavra física**, contando espaços e pontuação renderizada. Ex.: `CONFIANZUDO TAMBIÉN` deve virar `CONFIANZUDO` / `TAMBIÉN`, mesmo que o alvo de palavras permitisse o par.
+- Uma palavra única acima de 17 caracteres continua permitida, porque não há fronteira interna segura para cortar sem alterar texto.
 - **Pausa forte vence coesão.** Se duas palavras normalmente ligadas forem pronunciadas com uma pausa perceptível, elas devem poder ser separadas.
 - O usuário pode ativar **Ignorar preposições na contagem**. Nesse modo, a preposição permanece no texto sem consumir uma vaga; a cadência pode fazer a preposição se ligar ao lado mais natural, por exemplo `participar en` em vez de obrigatoriamente `en un`.
+- A opção de preposições não pode furar a trava visual: se `palavra + espaço + preposição` passar de 17 caracteres, a preposição deve ir para outro segmento.
 - O usuário pode ativar/desativar **Manter vírgulas e pontos**. Essa opção controla somente `,` e `.` nas bordas das palavras/captions.
 - **`¿`, `?`, `¡` e `!` são sempre preservados**, independentemente da opção de vírgulas e pontos.
 - A remoção opcional de `,` e `.` não pode destruir separadores internos de números como `50.000` ou `1,5`.

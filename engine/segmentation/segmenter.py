@@ -73,6 +73,7 @@ _OPTIONAL_EDGE_PUNCTUATION = re.compile(r"^[,.]+|[,.]+$")
 _TERMINAL_PUNCTUATION = re.compile(r"[?!]$")
 _SOFT_PUNCTUATION = re.compile(r"[,.]$")
 _MIN_SAFE_DURATION = 0.05
+_MAX_MULTI_WORD_CAPTION_CHARS = 17
 
 
 @dataclass(frozen=True, slots=True)
@@ -231,6 +232,13 @@ def _candidate_cost(
     if any(word.kind == "monetary" for word in group):
         if total_tokens != 1 or group[0].kind != "monetary":
             return math.inf
+
+    # Trava visual universal: coesão curta, preposição ignorada e alvo de palavras
+    # não podem produzir captions largas demais. Palavras únicas maiores que o limite
+    # continuam válidas, porque não existe uma fronteira interna segura para criar.
+    rendered_text = _join(group, config)
+    if total_tokens > 1 and len(rendered_text) > _MAX_MULTI_WORD_CAPTION_CHARS:
+        return math.inf
 
     # A inteligência pode expandir no máximo uma palavra física além do alvo.
     # Isso permite `qué tal` no alvo 1 sem transformar uma frase inteira em caption.

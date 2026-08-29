@@ -17,6 +17,14 @@ Checkpoint de 2026-08-26:
 - a CI Windows gerou e validou `SRTX-Setup.exe`, mas o upload como Actions artifact pode falhar quando a cota de artifacts do GitHub Actions estiver cheia;
 - build interno `v0.2.0-internal.1` publicado em GitHub Release com `SRTX-Setup.exe`.
 
+Checkpoint de 2026-08-28:
+
+- regressão real de segmentação `CONFIANZUDO TAMBIÉN` reproduzida em fixture;
+- adicionada trava visual universal de 17 caracteres para captions com mais de uma palavra física;
+- a opção de ignorar preposições não pode mais anexar uma preposição se o texto renderizado passar de 17 caracteres;
+- opções da UI trocadas de checkboxes para toggle buttons acessíveis;
+- progresso da transcrição conectado à barra de tarefas do Windows por `BrowserWindow.setProgressBar`.
+
 Fases atuais:
 
 - Fase 2 — transcrição: concluída funcionalmente;
@@ -46,6 +54,7 @@ Regras estruturais:
 - `¿`, `?`, `¡`, `!` sempre são preservados;
 - opção de pontuação controla somente vírgulas e pontos;
 - valores monetários reconhecidos são sempre captions isoladas;
+- captions com mais de uma palavra física não podem passar de 17 caracteres renderizados;
 - `N mil` é opcional e não pode reinterpretar números comuns;
 - cues precisam ter duração positiva e nunca podem sobrepor/regredir.
 

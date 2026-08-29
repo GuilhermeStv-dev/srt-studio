@@ -6,14 +6,14 @@ Aplicativo desktop Windows para transformar áudio/vídeo em **SRT pronto para e
 
 Build interno funcional para Windows disponível em GitHub Releases.
 
-Download: [`SRTX-Setup.exe`](https://github.com/GuilhermeStv-dev/srt-studio/releases/download/v0.2.0-internal.1/SRTX-Setup.exe)
+Download: [`SRTX-Setup.exe`](https://github.com/GuilhermeStv-dev/srt-studio/releases/download/v0.2.1-internal.1/SRTX-Setup.exe)
 
 Status resumido:
 
 - transcrição local com `faster-whisper` funcionando;
-- segmentação ES-PY funcional e calibrada por regressões;
+- segmentação ES-PY funcional, calibrada por regressões e com trava visual de 17 caracteres;
 - exportação SRT Premiere-safe funcionando no Windows;
-- desktop Electron funcional com seleção de mídia, preview, retry, progresso, cancelamento e exportação;
+- desktop Electron funcional com seleção de mídia, preview, retry, progresso, cancelamento, exportação e progresso na barra de tarefas;
 - instalador Windows `SRTX-Setup.exe` gerado e validado por CI;
 - pendente: validação final de instalação limpa, importação no Adobe Premiere e assinatura digital antes de distribuição pública.
 

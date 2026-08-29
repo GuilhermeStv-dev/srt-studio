@@ -522,44 +522,62 @@ function App() {
           </div>
 
           <div className="option-grid">
-            <label className="toggle-card">
-              <input
-                type="checkbox"
-                checked={ignorePrepositions}
-                onChange={(event) => setIgnorePrepositions(event.target.checked)}
-                disabled={isTranscribing}
-              />
-              <span>
-                <strong>Ignorar preposições na contagem</strong>
-                <small>A densidade é uma preferência; cadência e coesão ainda podem ajustar o corte.</small>
+            <button
+              className={`toggle-button ${ignorePrepositions ? 'is-on' : ''}`}
+              type="button"
+              role="switch"
+              aria-checked={ignorePrepositions}
+              onClick={() => setIgnorePrepositions((current) => !current)}
+              disabled={isTranscribing}
+            >
+              <span className="switch-track" aria-hidden="true">
+                <span className="switch-thumb" />
               </span>
-            </label>
+              <span className="toggle-copy">
+                <strong>Ignorar preposições na contagem</strong>
+                <small>A densidade é uma preferência; cadência, coesão e limite visual ainda podem ajustar o corte.</small>
+              </span>
+            </button>
 
-            <label className="toggle-card">
-              <input
-                type="checkbox"
-                checked={preserveCommasPeriods}
-                onChange={(event) => setPreserveCommasPeriods(event.target.checked)}
-                disabled={isTranscribing}
-              />
-              <span>
+            <button
+              className={`toggle-button ${preserveCommasPeriods ? 'is-on' : ''}`}
+              type="button"
+              role="switch"
+              aria-checked={preserveCommasPeriods}
+              onClick={() => setPreserveCommasPeriods((current) => !current)}
+              disabled={isTranscribing}
+            >
+              <span className="switch-track" aria-hidden="true">
+                <span className="switch-thumb" />
+              </span>
+              <span className="toggle-copy">
                 <strong>Manter vírgulas e pontos</strong>
                 <small>Controla apenas “,” e “.”. ¿ ? ¡ ! são sempre preservados.</small>
               </span>
-            </label>
+            </button>
 
-            <label className="toggle-card">
-              <input
-                type="checkbox"
-                checked={formatMonetaryThousands}
-                onChange={(event) => setFormatMonetaryThousands(event.target.checked)}
-                disabled={isTranscribing}
-              />
-              <span>
+            <button
+              className={`toggle-button ${formatMonetaryThousands ? 'is-on' : ''}`}
+              type="button"
+              role="switch"
+              aria-checked={formatMonetaryThousands}
+              onClick={() => setFormatMonetaryThousands((current) => !current)}
+              disabled={isTranscribing}
+            >
+              <span className="switch-track" aria-hidden="true">
+                <span className="switch-thumb" />
+              </span>
+              <span className="toggle-copy">
                 <strong>Valores monetários no formato “mil”</strong>
                 <small>Ex.: ₲200.000 / 200 mil guaraníes → 200 mil. Outros números não são alterados.</small>
               </span>
-            </label>
+            </button>
+
+            <div className="limit-card" aria-label="Limite visual automático">
+              <span>Trava visual</span>
+              <strong>17 caracteres</strong>
+              <small>Se duas palavras passarem disso com o espaço, o engine separa.</small>
+            </div>
           </div>
 
           <div className="engine-line">

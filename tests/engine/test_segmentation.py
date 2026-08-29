@@ -51,15 +51,15 @@ class SegmentationTests(unittest.TestCase):
     def test_four_words_per_caption_without_special_cadence(self) -> None:
         result = segment_words(
             words(
-                ("uno", 0.00, 0.10),
+                ("un", 0.00, 0.10),
                 ("dos", 0.11, 0.20),
                 ("tres", 0.21, 0.30),
-                ("cuatro", 0.31, 0.40),
+                ("va", 0.31, 0.40),
                 ("cinco", 0.41, 0.50),
             ),
             SegmentationConfig(target_words=4, ignore_prepositions=False),
         )
-        self.assertEqual([cue.text for cue in result], ["uno dos tres cuatro", "cinco"])
+        self.assertEqual([cue.text for cue in result], ["un dos tres va", "cinco"])
 
     def test_preposition_can_be_ignored_in_count(self) -> None:
         result = segment_words(
@@ -71,6 +71,16 @@ class SegmentationTests(unittest.TestCase):
             SegmentationConfig(target_words=1, ignore_prepositions=True),
         )
         self.assertEqual([cue.text for cue in result], ["para vos", "ahora"])
+
+    def test_hard_caption_width_overrides_preposition_attachment(self) -> None:
+        result = segment_words(
+            words(
+                ("extraordinario", 0.00, 0.34),
+                ("para", 0.35, 0.55),
+            ),
+            SegmentationConfig(target_words=1, ignore_prepositions=True),
+        )
+        self.assertEqual([cue.text for cue in result], ["extraordinario", "para"])
 
     def test_preposition_counts_when_option_is_disabled(self) -> None:
         result = segment_words(

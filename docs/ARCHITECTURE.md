@@ -51,6 +51,7 @@ Responsável por transformar palavras temporizadas em cues:
 - opção de preservar/remover somente vírgulas e pontos nas bordas;
 - `¿`, `?`, `¡` e `!` sempre preservados;
 - separadores internos como `50.000` e `1,5` protegidos;
+- trava visual universal de 17 caracteres para captions com mais de uma palavra física;
 - duração e integridade temporal;
 - comportamento determinístico e coberto por regressão.
 

@@ -109,3 +109,9 @@ Release interna atual:
 ```text
 https://github.com/GuilhermeStv-dev/srt-studio/releases/tag/v0.2.0-internal.1
 ```
+
+Próxima release interna:
+
+```text
+https://github.com/GuilhermeStv-dev/srt-studio/releases/tag/v0.2.1-internal.1
+```
