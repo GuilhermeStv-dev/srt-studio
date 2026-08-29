@@ -543,6 +543,22 @@ function App() {
     }
   }, [])
 
+  useEffect(() => {
+    if (!openHelp) return undefined
+
+    const closeHelp = () => setOpenHelp(null)
+    const closeHelpOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') closeHelp()
+    }
+
+    window.addEventListener('mousedown', closeHelp)
+    window.addEventListener('keydown', closeHelpOnEscape)
+    return () => {
+      window.removeEventListener('mousedown', closeHelp)
+      window.removeEventListener('keydown', closeHelpOnEscape)
+    }
+  }, [openHelp])
+
   return (
     <main className="shell">
       <section className="hero">
@@ -652,6 +668,7 @@ function App() {
                   className="help-button"
                   type="button"
                   aria-label="Explicar preposições"
+                  onMouseDown={(event) => event.stopPropagation()}
                   onClick={() => toggleHelp('prepositions')}
                 >
                   ?
@@ -670,7 +687,14 @@ function App() {
                 </button>
               </div>
               {openHelp === 'prepositions' && (
-                <p className="setting-help">Preposições como “a”, “en”, “de” e “para” podem acompanhar a palavra vizinha sem contar como uma palavra extra. A pausa real e o limite de 17 caracteres continuam mandando.</p>
+                <div
+                  className="setting-popover"
+                  role="dialog"
+                  aria-label="Ajuda sobre preposições"
+                  onMouseDown={(event) => event.stopPropagation()}
+                >
+                  Preposições como “a”, “en”, “de” e “para” podem acompanhar a palavra vizinha sem contar como uma palavra extra. A pausa real e o limite de 17 caracteres continuam mandando.
+                </div>
               )}
             </div>
 
@@ -681,6 +705,7 @@ function App() {
                   className="help-button"
                   type="button"
                   aria-label="Explicar pontuação"
+                  onMouseDown={(event) => event.stopPropagation()}
                   onClick={() => toggleHelp('punctuation')}
                 >
                   ?
@@ -699,7 +724,14 @@ function App() {
                 </button>
               </div>
               {openHelp === 'punctuation' && (
-                <p className="setting-help">Controla só vírgulas e pontos nas bordas. Interrogação, exclamação e sinais espanhóis como “¿” e “¡” são sempre preservados.</p>
+                <div
+                  className="setting-popover"
+                  role="dialog"
+                  aria-label="Ajuda sobre pontuação"
+                  onMouseDown={(event) => event.stopPropagation()}
+                >
+                  Controla só vírgulas e pontos nas bordas. Interrogação, exclamação e sinais espanhóis como “¿” e “¡” são sempre preservados.
+                </div>
               )}
             </div>
 
@@ -710,6 +742,7 @@ function App() {
                   className="help-button"
                   type="button"
                   aria-label="Explicar valores monetários"
+                  onMouseDown={(event) => event.stopPropagation()}
                   onClick={() => toggleHelp('money')}
                 >
                   ?
@@ -728,7 +761,14 @@ function App() {
                 </button>
               </div>
               {openHelp === 'money' && (
-                <p className="setting-help">Quando reconhecer dinheiro em guaraníes, o app pode padronizar como “200 mil”. Números comuns de contagem não são tratados como moeda.</p>
+                <div
+                  className="setting-popover"
+                  role="dialog"
+                  aria-label="Ajuda sobre valores monetários"
+                  onMouseDown={(event) => event.stopPropagation()}
+                >
+                  Quando reconhecer dinheiro em guaraníes, o app pode padronizar como “200 mil”. Números comuns de contagem não são tratados como moeda.
+                </div>
               )}
             </div>
 
@@ -739,6 +779,7 @@ function App() {
                   className="help-button"
                   type="button"
                   aria-label="Explicar trava visual"
+                  onMouseDown={(event) => event.stopPropagation()}
                   onClick={() => toggleHelp('visual-limit')}
                 >
                   ?
@@ -746,7 +787,14 @@ function App() {
                 <span className="static-pill">ativa</span>
               </div>
               {openHelp === 'visual-limit' && (
-                <p className="setting-help">Se uma legenda tiver mais de uma palavra e passar de 17 caracteres contando espaços, o engine separa. Palavra única longa continua inteira.</p>
+                <div
+                  className="setting-popover"
+                  role="dialog"
+                  aria-label="Ajuda sobre trava visual"
+                  onMouseDown={(event) => event.stopPropagation()}
+                >
+                  Se uma legenda tiver mais de uma palavra e passar de 17 caracteres contando espaços, o engine separa. Palavra única longa continua inteira.
+                </div>
               )}
             </div>
           </div>

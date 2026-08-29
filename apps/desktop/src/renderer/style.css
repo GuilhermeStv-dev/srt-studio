@@ -23,6 +23,12 @@ html { background: var(--bg); }
 body { margin: 0; min-width: 320px; min-height: 100vh; background: var(--bg); }
 button, select, input { font: inherit; }
 button, select { -webkit-tap-highlight-color: transparent; }
+button:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid rgba(169, 164, 255, .72);
+  outline-offset: 2px;
+}
 
 .shell {
   min-height: 100vh;
@@ -206,6 +212,7 @@ select:focus { border-color: rgba(169, 164, 255, .72); }
   gap: 8px;
 }
 .setting-card {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
@@ -219,8 +226,8 @@ select:focus { border-color: rgba(169, 164, 255, .72); }
   transition: border-color .14s ease, background-color .14s ease, box-shadow .14s ease;
 }
 .setting-card.is-on {
-  border-color: rgba(120, 231, 189, .36);
-  background: rgba(23, 35, 31, .76);
+  border-color: var(--border);
+  background: var(--panel-soft);
 }
 .setting-card.is-static {
   border-color: rgba(169, 164, 255, .26);
@@ -256,14 +263,31 @@ select:focus { border-color: rgba(169, 164, 255, .72); }
   border-color: rgba(169, 164, 255, .58);
   background: rgba(169, 164, 255, .10);
 }
+.help-button:focus-visible {
+  outline-color: rgba(169, 164, 255, .82);
+}
 .toggle-pill {
-  min-width: 40px;
-  min-height: 24px;
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  min-width: 44px;
+  height: 26px;
+  min-height: 26px;
   padding: 0;
   border: 0;
   border-radius: 999px;
   color: inherit;
   background: transparent;
+}
+.toggle-pill:hover:not(:disabled),
+.toggle-pill:active:not(:disabled) {
+  transform: none;
+}
+.toggle-pill:focus-visible {
+  outline: none;
+}
+.toggle-pill:focus-visible .switch-track {
+  box-shadow: 0 0 0 2px rgba(13, 14, 17, .95), 0 0 0 4px rgba(169, 164, 255, .75);
 }
 .static-pill {
   display: inline-flex;
@@ -282,8 +306,8 @@ select:focus { border-color: rgba(169, 164, 255, .72); }
 .switch-track {
   position: relative;
   flex: 0 0 auto;
-  width: 34px;
-  height: 19px;
+  width: 40px;
+  height: 24px;
   margin-top: 1px;
   border-radius: 999px;
   background: #2a2d36;
@@ -294,27 +318,36 @@ select:focus { border-color: rgba(169, 164, 255, .72); }
   position: absolute;
   top: 3px;
   left: 3px;
-  width: 13px;
-  height: 13px;
+  width: 18px;
+  height: 18px;
   border-radius: 999px;
-  background: #b7bbc6;
+  background: #cfd2dc;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .35);
   transition: transform .14s ease, background-color .14s ease;
 }
 .setting-card.is-on .switch-track {
-  background: var(--success);
-  box-shadow: 0 0 16px rgba(120, 231, 189, .20);
+  background: #7646ff;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .12);
 }
 .setting-card.is-on .switch-thumb {
-  background: #10251f;
-  transform: translateX(15px);
+  background: #f2f0ff;
+  transform: translateX(16px);
 }
-.setting-help {
-  grid-column: 1 / -1;
-  max-width: none;
-  margin: 1px 0 0;
-  color: #a7abb5;
-  font-size: 11px;
+.setting-popover {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 8px);
+  right: 10px;
+  width: min(310px, calc(100vw - 40px));
+  padding: 12px 13px;
+  border: 1px solid rgba(169, 164, 255, .35);
+  border-radius: 11px;
+  color: #ebeaf5;
+  background: #1b1725;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, .34);
+  font-size: 12px;
   line-height: 1.45;
+  text-wrap: pretty;
 }
 .engine-line {
   display: flex;

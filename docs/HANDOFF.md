@@ -33,6 +33,12 @@ Checkpoint de 2026-08-28, segunda rodada:
 - coluna lateral do preview mostra quantidade de caracteres da caption, não índice;
 - cards de opções ficaram compactos e mostram explicação clara somente ao clicar em `?`.
 
+Checkpoint de 2026-08-29:
+
+- removido estado verde dos cards de opção ativos;
+- toggles compactos revisados para usar switch roxo, com foco acessível sem contorno amarelo nativo;
+- explicações dos botões `?` agora aparecem como popovers flutuantes e fecham ao clicar fora ou pressionar Esc.
+
 Fases atuais:
 
 - Fase 2 — transcrição: concluída funcionalmente;

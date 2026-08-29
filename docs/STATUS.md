@@ -102,6 +102,7 @@ Cada novo corte considerado ruim deve virar uma fixture mínima antes de alterar
 - [x] checkboxes de opções trocados por toggle buttons acessíveis
 - [x] progresso percentual da transcrição refletido na barra de tarefas do Windows
 - [x] cards de opções compactos com explicação sob demanda via `?`
+- [x] toggles revisados sem estado verde de seleção e com ajuda em popover flutuante
 - [x] preview de captions editável antes da exportação
 - [x] coluna lateral do preview mostra caracteres da caption em vez de índice
 - [ ] remover os últimos sinais de build/dev da versão final
@@ -125,6 +126,7 @@ Cada novo corte considerado ruim deve virar uma fixture mínima antes de alterar
 - [x] `SRTX-Setup.exe` publicado em GitHub Release permanente: `v0.2.0-internal.1`
 - [x] `SRTX-Setup.exe` 0.2.1 gerado localmente com trava visual/toggle/progresso taskbar
 - [x] `SRTX-Setup.exe` 0.2.2 gerado localmente com editor de captions, contagem visual e calibração de ritmo/contagem
+- [x] `SRTX-Setup.exe` 0.2.3 gerado localmente com correção visual dos toggles/popovers
 - [ ] instalar e validar o Setup em Windows real
 - [ ] validar transcrição/exportação sem Python/Node instalados
 - [ ] definir política final de cache/download de modelos

@@ -6,7 +6,7 @@ Aplicativo desktop Windows para transformar áudio/vídeo em **SRT pronto para e
 
 Build interno funcional para Windows disponível em GitHub Releases.
 
-Download: [`SRTX-Setup.exe`](https://github.com/GuilhermeStv-dev/srt-studio/releases/download/v0.2.2-internal.1/SRTX-Setup.exe)
+Download: [`SRTX-Setup.exe`](https://github.com/GuilhermeStv-dev/srt-studio/releases/download/v0.2.3-internal.1/SRTX-Setup.exe)
 
 Status resumido:
 
