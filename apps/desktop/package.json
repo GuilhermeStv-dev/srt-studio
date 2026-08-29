@@ -1,7 +1,7 @@
 {
   "name": "@srt-studio/desktop",
   "productName": "SRTX",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "private": true,
   "author": "Guilherme Estevão",
   "description": "SRTX — editor local para transcrição e geração de SRT Premiere-safe.",

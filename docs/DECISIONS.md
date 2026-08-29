@@ -113,3 +113,15 @@ A primeira versão usava aproximadamente 12 caracteres por caption como preferê
 **Interação com preposições:** ignorar preposições na contagem continua válido, mas não pode furar a parede visual. Se `palavra + espaço + preposição` passar de 17 caracteres, o segmentador deve separar.
 
 **Exceção:** uma palavra única acima de 17 caracteres permanece permitida, porque o engine não deve alterar ou quebrar internamente uma palavra reconhecida apenas para caber no limite.
+
+## D-014 — Preview vira editor de revisão
+
+**Decisão:** depois da transcrição, o preview de captions deixa de ser somente leitura e passa a permitir edição manual antes da exportação.
+
+**Motivo:** a segmentação automática deve chegar perto do ideal, mas o workflow real precisa da liberdade de revisar, dividir e excluir segmentos como em editores modernos de legenda.
+
+**Limite:** a UI pode editar `CaptionCue[]` já gerados, mas não implementa regras linguísticas novas. A lógica automática de transcrição, normalização, segmentação e validação continua no engine Python.
+
+**Ajuste de UX:** a coluna lateral do preview mostra a contagem exata de caracteres da caption, não o índice do segmento. Índice/timestamps são auxiliares; leitura e largura visual são o foco.
+
+**Calibração associada:** pares curtos como `acá tenemos` podem ficar juntos quando os timestamps indicam fala colada; dígitos simples de contagem/chamada, como `5 4 3 2 1`, ficam isolados em captions próprias.

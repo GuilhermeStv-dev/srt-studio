@@ -7,6 +7,7 @@
 - Timestamps por palavra como fonte de verdade temporal.
 - O controle principal de segmentação é **alvo de 1, 2, 3 ou 4 palavras por caption**, mas esse número é uma **preferência forte**, não uma tesoura mecânica.
 - A segmentação deve combinar **alvo de palavras + pausa real entre palavras + pontuação + coesão curta da expressão** para escolher a melhor fronteira.
+- Pares demonstrativos curtos como `acá tenemos` podem permanecer juntos quando falados sem pausa relevante e dentro da trava visual.
 - No alvo de 1 palavra, pares curtos podem permanecer juntos quando separar pioraria a leitura e a fala estiver colada, por exemplo `¿qué tal?`, `participar en`, `un juego?`, `¿Quién se` e `acá ya`.
 - A expansão inteligente deve ser curta: o alvo de 1 palavra pode formar um par, mas não deve preservar automaticamente uma frase de três palavras só porque ela é semanticamente completa. Ex.: `¿Quién se anima?` pode virar `¿Quién se` / `anima?`.
 - A segmentação possui uma **trava visual universal de 17 caracteres para captions com mais de uma palavra física**, contando espaços e pontuação renderizada. Ex.: `CONFIANZUDO TAMBIÉN` deve virar `CONFIANZUDO` / `TAMBIÉN`, mesmo que o alvo de palavras permitisse o par.
@@ -24,6 +25,8 @@
 - A normalização monetária incide **somente sobre valores monetários**. Números não monetários, como `50.000 habitantes`, horários, quantidades, placares e medidas, não devem ser alterados.
 - Quando a opção de formato monetário estiver desligada, preservar a forma reconhecida pelo Whisper tanto quanto possível, mas ainda tratar o valor como bloco monetário isolado.
 - Proteger números e unidades semanticamente ligadas.
+- Dígitos simples de contagem/chamada, como `5 4 3 2 1`, devem ocupar captions isoladas quando reconhecidos como tokens numéricos próprios.
+- Depois de geradas, captions podem ser editadas manualmente no preview; a exportação usa a versão revisada pelo usuário.
 - Nunca produzir duração zero.
 - Nunca produzir overlap.
 - Nunca produzir timestamp regressivo.

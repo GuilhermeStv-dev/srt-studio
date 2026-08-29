@@ -51,8 +51,10 @@
 - [x] trava visual universal de 17 caracteres para captions com mais de uma palavra física
 - [x] cues positivos, sem overlap e sem regressão
 - [x] preset `ES-PY · Dinâmico` validado pelo usuário como adequado ao workflow real
+- [x] coesão curta calibrada para `acá tenemos` quando falado colado
+- [x] dígitos simples de contagem/chamada isolados em captions próprias
 
-A Fase 3 está funcionalmente concluída. O corte ruim real `CONFIANZUDO TAMBIÉN` virou regressão e agora é bloqueado pela trava visual de 17 caracteres.
+A Fase 3 está funcionalmente concluída. Cortes ruins reais como `CONFIANZUDO TAMBIÉN`, `Acá` / `tenemos` e contagens `5 4 3 2 1` viraram regressões.
 
 ## Calibração e regressão
 
@@ -99,6 +101,9 @@ Cada novo corte considerado ruim deve virar uma fixture mínima antes de alterar
 - [x] explicações técnicas de progresso removidas da experiência normal
 - [x] checkboxes de opções trocados por toggle buttons acessíveis
 - [x] progresso percentual da transcrição refletido na barra de tarefas do Windows
+- [x] cards de opções compactos com explicação sob demanda via `?`
+- [x] preview de captions editável antes da exportação
+- [x] coluna lateral do preview mostra caracteres da caption em vez de índice
 - [ ] remover os últimos sinais de build/dev da versão final
 - [ ] revisar estados vazios, erro e sucesso antes da distribuição pública
 
@@ -119,6 +124,7 @@ Cada novo corte considerado ruim deve virar uma fixture mínima antes de alterar
 - [x] `SRTX-Setup.exe` passou pela CI Windows
 - [x] `SRTX-Setup.exe` publicado em GitHub Release permanente: `v0.2.0-internal.1`
 - [x] `SRTX-Setup.exe` 0.2.1 gerado localmente com trava visual/toggle/progresso taskbar
+- [x] `SRTX-Setup.exe` 0.2.2 gerado localmente com editor de captions, contagem visual e calibração de ritmo/contagem
 - [ ] instalar e validar o Setup em Windows real
 - [ ] validar transcrição/exportação sem Python/Node instalados
 - [ ] definir política final de cache/download de modelos

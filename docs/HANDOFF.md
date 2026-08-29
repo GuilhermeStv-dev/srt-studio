@@ -25,6 +25,14 @@ Checkpoint de 2026-08-28:
 - opções da UI trocadas de checkboxes para toggle buttons acessíveis;
 - progresso da transcrição conectado à barra de tarefas do Windows por `BrowserWindow.setProgressBar`.
 
+Checkpoint de 2026-08-28, segunda rodada:
+
+- calibrado par curto `acá tenemos` para ficar junto quando o gap real é colado e o texto cabe na trava visual;
+- dígitos simples de contagem/chamada (`5`, `4`, `3`, `2`, `1`) passam a ser captions isoladas;
+- preview de captions agora permite editar texto, dividir com Enter/botão e excluir segmentos antes da exportação;
+- coluna lateral do preview mostra quantidade de caracteres da caption, não índice;
+- cards de opções ficaram compactos e mostram explicação clara somente ao clicar em `?`.
+
 Fases atuais:
 
 - Fase 2 — transcrição: concluída funcionalmente;
@@ -55,6 +63,8 @@ Regras estruturais:
 - opção de pontuação controla somente vírgulas e pontos;
 - valores monetários reconhecidos são sempre captions isoladas;
 - captions com mais de uma palavra física não podem passar de 17 caracteres renderizados;
+- pares demonstrativos curtos como `acá tenemos` podem ficar juntos quando falados sem pausa relevante;
+- dígitos simples de contagem/chamada são isolados em captions próprias;
 - `N mil` é opcional e não pode reinterpretar números comuns;
 - cues precisam ter duração positiva e nunca podem sobrepor/regredir.
 
@@ -113,6 +123,7 @@ A fixture pode incluir `normalization.monetary_thousands` quando o caso precisar
 - retry preservando arquivo/configuração;
 - preview completo de captions;
 - exportação SRT com Save As e confirmação de sobrescrita;
+- revisão manual de captions no preview antes da exportação;
 - layout desktop refinado em duas colunas + preview em largura total;
 - informações de engine/runtime saudável, WordTokens brutos e explicações técnicas foram removidas da experiência normal;
 - detalhes técnicos devem aparecer somente quando houver erro que exija ação.

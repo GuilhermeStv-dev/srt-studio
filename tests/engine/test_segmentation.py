@@ -137,6 +137,33 @@ class SegmentationTests(unittest.TestCase):
         )
         self.assertEqual([cue.text for cue in result], ["acá ya", "encontramos"])
 
+    def test_one_word_target_can_keep_short_deictic_presentation_pair(self) -> None:
+        result = segment_words(
+            words(
+                ("Acá", 0.00, 0.36),
+                ("tenemos", 0.36, 0.74),
+                ("a", 0.75, 0.86),
+                ("otro", 0.86, 1.12),
+            ),
+            SegmentationConfig(target_words=1, ignore_prepositions=True),
+        )
+        self.assertEqual([cue.text for cue in result], ["Acá tenemos", "a otro"])
+
+    def test_countdown_digits_are_always_isolated(self) -> None:
+        result = segment_words(
+            words(
+                ("Comenzamos", 0.00, 0.44),
+                ("en", 0.44, 0.56),
+                ("5", 0.56, 0.74),
+                ("4", 0.86, 0.96),
+                ("3", 1.06, 1.16),
+                ("2", 1.26, 1.36),
+                ("1", 1.46, 1.56),
+            ),
+            SegmentationConfig(target_words=2, ignore_prepositions=True),
+        )
+        self.assertEqual([cue.text for cue in result], ["Comenzamos en", "5", "4", "3", "2", "1"])
+
     def test_hard_pause_breaks_even_a_cohesive_pair(self) -> None:
         result = segment_words(
             words(

@@ -19,6 +19,7 @@ Responsável somente por experiência desktop:
 - mostrar progresso/estado;
 - solicitar operações ao engine;
 - pré-visualizar palavras e captions;
+- permitir edição manual de `CaptionCue[]` já gerados antes da exportação;
 - escolher destino de exportação;
 - pedir confirmação de sobrescrita antes de autorizar o engine a substituir um SRT.
 
@@ -52,6 +53,8 @@ Responsável por transformar palavras temporizadas em cues:
 - `¿`, `?`, `¡` e `!` sempre preservados;
 - separadores internos como `50.000` e `1,5` protegidos;
 - trava visual universal de 17 caracteres para captions com mais de uma palavra física;
+- coesão curta para pares demonstrativos como `acá tenemos`;
+- isolamento de dígitos simples de contagem;
 - duração e integridade temporal;
 - comportamento determinístico e coberto por regressão.
 
