@@ -110,9 +110,15 @@ Release interna atual:
 https://github.com/GuilhermeStv-dev/srt-studio/releases/tag/v0.2.0-internal.1
 ```
 
+Próxima release interna:
+
+```text
+https://github.com/GuilhermeStv-dev/srt-studio/releases/tag/v0.2.3-internal.1
+```
+
 ## macOS (Apple Silicon)
 
-Decisão registrada em `docs/DECISIONS.md` (D-013).
+Decisão registrada em `docs/DECISIONS.md` (D-015).
 
 ### Build
 

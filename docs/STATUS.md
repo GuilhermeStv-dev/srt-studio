@@ -1,6 +1,6 @@
 # Estado atual
 
-Última atualização: 2026-08-26
+Última atualização: 2026-08-28
 
 ## Fase
 
@@ -48,10 +48,13 @@
 - [x] opção controla somente vírgulas e pontos
 - [x] valores monetários reconhecidos são sempre isolados
 - [x] normalização opcional `N mil`
+- [x] trava visual universal de 17 caracteres para captions com mais de uma palavra física
 - [x] cues positivos, sem overlap e sem regressão
 - [x] preset `ES-PY · Dinâmico` validado pelo usuário como adequado ao workflow real
+- [x] coesão curta calibrada para `acá tenemos` quando falado colado
+- [x] dígitos simples de contagem/chamada isolados em captions próprias
 
-A Fase 3 está funcionalmente concluída. Novos cortes ruins continuam sendo tratados como regressões, mas não há ajuste pendente conhecido no segmentador.
+A Fase 3 está funcionalmente concluída. Cortes ruins reais como `CONFIANZUDO TAMBIÉN`, `Acá` / `tenemos` e contagens `5 4 3 2 1` viraram regressões.
 
 ## Calibração e regressão
 
@@ -96,6 +99,12 @@ Cada novo corte considerado ruim deve virar uma fixture mínima antes de alterar
 - [x] detalhes de runtime/engine ocultos quando saudáveis
 - [x] WordTokens/timestamps brutos removidos da experiência normal
 - [x] explicações técnicas de progresso removidas da experiência normal
+- [x] checkboxes de opções trocados por toggle buttons acessíveis
+- [x] progresso percentual da transcrição refletido na barra de tarefas do Windows
+- [x] cards de opções compactos com explicação sob demanda via `?`
+- [x] toggles revisados sem estado verde de seleção e com ajuda em popover flutuante
+- [x] preview de captions editável antes da exportação
+- [x] coluna lateral do preview mostra caracteres da caption em vez de índice
 - [ ] remover os últimos sinais de build/dev da versão final
 - [ ] revisar estados vazios, erro e sucesso antes da distribuição pública
 
@@ -115,6 +124,10 @@ Cada novo corte considerado ruim deve virar uma fixture mínima antes de alterar
 - [x] engine standalone validado dentro do pacote local
 - [x] `SRTX-Setup.exe` passou pela CI Windows
 - [x] `SRTX-Setup.exe` publicado em GitHub Release permanente: `v0.2.0-internal.1`
+- [x] `SRTX-Setup.exe` 0.2.1 gerado localmente com trava visual/toggle/progresso taskbar
+- [x] `SRTX-Setup.exe` 0.2.2 gerado localmente com editor de captions, contagem visual e calibração de ritmo/contagem
+- [x] `SRTX-Setup.exe` 0.2.3 gerado localmente com correção visual dos toggles/popovers
+- [x] `SRTX-macOS-arm64.zip` gerado e validado pela CI macOS (arm64)
 - [ ] instalar e validar o Setup em Windows real
 - [ ] validar transcrição/exportação sem Python/Node instalados
 - [ ] definir política final de cache/download de modelos

@@ -1,0 +1,17 @@
+{
+  "name": "hard caption width blocks visually long pairs",
+  "description": "Mesmo com alvo de 2 palavras, um par que passa de 17 caracteres contando o espaço deve ser separado.",
+  "config": {
+    "target_words": 2,
+    "ignore_prepositions": true,
+    "preserve_commas_periods": true
+  },
+  "tokens": [
+    { "text": "CONFIANZUDO", "start": 0.0, "end": 0.35 },
+    { "text": "TAMBIÉN", "start": 0.36, "end": 0.7 }
+  ],
+  "expected_captions": [
+    "CONFIANZUDO",
+    "TAMBIÉN"
+  ]
+}

@@ -97,6 +97,26 @@ function engineError(stderr: string, code: number | null): Error {
   return new Error(`Engine encerrou com código ${code}`)
 }
 
+function setTranscriptionTaskbarProgress(
+  win: BrowserWindow | null,
+  payload: { stage: string; progress: number | null }
+): void {
+  if (!win || win.isDestroyed()) return
+
+  if (payload.progress === null) {
+    win.setProgressBar(2, { mode: 'indeterminate' })
+    return
+  }
+
+  const progress = Math.min(1, Math.max(0, payload.progress))
+  win.setProgressBar(progress, { mode: 'normal' })
+}
+
+function clearTaskbarProgress(win: BrowserWindow | null): void {
+  if (!win || win.isDestroyed()) return
+  win.setProgressBar(-1)
+}
+
 function runEngineJson(
   args: string[],
   acceptNonZero = false,
@@ -311,11 +331,21 @@ app.whenReady().then(() => {
       if (!input.preserveCommasPeriods) args.push('--remove-commas-periods')
       if (input.formatMonetaryThousands) args.push('--monetary-thousands')
 
-      return runTranscriptionJson(args, (payload) => {
-        if (!event.sender.isDestroyed()) {
-          event.sender.send('engine:transcription-progress', payload)
-        }
-      })
+      const sourceWindow = BrowserWindow.fromWebContents(event.sender)
+
+      try {
+        const result = await runTranscriptionJson(args, (payload) => {
+          setTranscriptionTaskbarProgress(sourceWindow, payload)
+          if (!event.sender.isDestroyed()) {
+            event.sender.send('engine:transcription-progress', payload)
+          }
+        })
+        clearTaskbarProgress(sourceWindow)
+        return result
+      } catch (error) {
+        clearTaskbarProgress(sourceWindow)
+        throw error
+      }
     }
   )
 

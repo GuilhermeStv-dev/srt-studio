@@ -6,16 +6,17 @@ Aplicativo desktop (Windows e macOS Apple Silicon) para transformar áudio/víde
 
 Build interno funcional para Windows disponível em GitHub Releases.
 
-Download: [`SRTX-Setup.exe`](https://github.com/GuilhermeStv-dev/srt-studio/releases/download/v0.2.0-internal.1/SRTX-Setup.exe)
+Download: [`SRTX-Setup.exe`](https://github.com/GuilhermeStv-dev/srt-studio/releases/download/v0.2.3-internal.1/SRTX-Setup.exe)
 
-macOS (M1/M2/M3…): `SRTX-macOS-arm64.zip` nas próximas Releases `v*` — veja instalação em [`docs/DISTRIBUTION.md`](docs/DISTRIBUTION.md#macos-apple-silicon).
+macOS Apple Silicon (M1/M2/M3…): `SRTX-macOS-arm64.zip` publicado nas Releases `v*` — veja instalação em [`docs/DISTRIBUTION.md`](docs/DISTRIBUTION.md#macos-apple-silicon).
 
 Status resumido:
 
 - transcrição local com `faster-whisper` funcionando;
-- segmentação ES-PY funcional e calibrada por regressões;
+- segmentação ES-PY funcional, calibrada por regressões e com trava visual de 17 caracteres;
+- editor manual no preview para ajustar texto, dividir e excluir captions antes da exportação;
 - exportação SRT Premiere-safe funcionando no Windows;
-- desktop Electron funcional com seleção de mídia, preview, retry, progresso, cancelamento e exportação;
+- desktop Electron funcional com seleção de mídia, preview, retry, progresso, cancelamento, exportação e progresso na barra de tarefas;
 - instalador Windows `SRTX-Setup.exe` gerado e validado por CI;
 - pendente: validação final de instalação limpa, importação no Adobe Premiere e assinatura digital antes de distribuição pública.
 
