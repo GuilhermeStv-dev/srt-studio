@@ -58,7 +58,11 @@ jobs:
 
           say -o "$RUNNER_TEMP/smoke.wav" --file-format=WAVE --data-format=LEI16@16000 \
             'Hello, this is a subtitle test for the studio.'
-          "$engine" transcribe "$RUNNER_TEMP/smoke.wav" --model tiny --language en > transcript.json
+          "$engine" transcribe "$RUNNER_TEMP/smoke.wav" --model tiny --language en > transcript.json 2> transcript.err
+          cat transcript.err
+          if grep -q 'invalid choice' transcript.err; then
+            echo 'Engine congelado não tratou subprocessos do multiprocessing.'; exit 1
+          fi
           python -c "import json; r=json.load(open('transcript.json')); assert r.get('ok') and r['captions'], r; print('Transcrição OK:', len(r['captions']), 'captions')"
 
           out="$RUNNER_TEMP/¿prueba-á.srt"
