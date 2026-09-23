@@ -39,6 +39,8 @@ type ExportState =
   | { status: 'success'; message: string; path: string }
   | { status: 'error'; message: string }
 
+type HelpTopic = 'prepositions' | 'punctuation' | 'money' | 'visual-limit'
+
 const MEDIA_EXTENSIONS = new Set([
   'mp3', 'wav', 'm4a', 'aac', 'flac', 'ogg',
   'mp4', 'mov', 'mkv', 'avi', 'webm'
@@ -65,6 +67,64 @@ function progressMessage(stage: string, progress: number | null): string {
   if (stage === 'finalizing') return 'Segmentando e validando captions…'
   if (stage === 'completed') return 'Finalizando resultado…'
   return 'Transcrevendo…'
+}
+
+function captionCharacterCount(text: string): number {
+  return Array.from(text).length
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value))
+}
+
+function closestSplitOffset(text: string, requestedOffset: number): number | null {
+  const safeOffset = clamp(requestedOffset, 1, text.length - 1)
+  const before = text.slice(0, safeOffset).search(/\s+\S*$/)
+  const after = text.slice(safeOffset).search(/\s/)
+
+  const candidates = [
+    before >= 0 ? before : null,
+    after >= 0 ? safeOffset + after : null
+  ].filter((candidate): candidate is number => candidate !== null)
+
+  if (candidates.length === 0) return safeOffset
+  return candidates.reduce((best, candidate) => (
+    Math.abs(candidate - safeOffset) < Math.abs(best - safeOffset) ? candidate : best
+  ))
+}
+
+function splitCaption(caption: Caption, requestedOffset: number): [Caption, Caption] | null {
+  const offset = closestSplitOffset(caption.text, requestedOffset)
+  if (offset === null) return null
+
+  const leftText = caption.text.slice(0, offset).trim()
+  const rightText = caption.text.slice(offset).trim()
+  if (!leftText || !rightText) return null
+
+  const duration = caption.end - caption.start
+  if (duration < 0.12) return null
+
+  const ratio = clamp(
+    captionCharacterCount(leftText) / Math.max(1, captionCharacterCount(leftText) + captionCharacterCount(rightText)),
+    0.18,
+    0.82
+  )
+  const splitTime = roundTime(clamp(
+    caption.start + duration * ratio,
+    caption.start + 0.05,
+    caption.end - 0.05
+  ))
+
+  if (splitTime <= caption.start || splitTime >= caption.end) return null
+
+  return [
+    { text: leftText, start: caption.start, end: splitTime },
+    { text: rightText, start: splitTime, end: caption.end }
+  ]
+}
+
+function roundTime(value: number): number {
+  return Math.round(value * 1000) / 1000
 }
 
 function App() {
@@ -96,6 +156,8 @@ function App() {
     status: 'idle',
     message: 'O SRT ficará disponível depois da transcrição.'
   })
+  const [openHelp, setOpenHelp] = useState<HelpTopic | null>(null)
+  const captionInputRefs = useRef<Array<HTMLTextAreaElement | null>>([])
 
   const selectedName = useMemo(() => fileName(filePath), [filePath])
   const isTranscribing = transcription.status === 'loading'
@@ -392,6 +454,67 @@ function App() {
     }
   }
 
+  function replaceCaptions(updater: (captions: Caption[]) => Caption[]) {
+    setTranscription((current) => {
+      if (current.status !== 'success') return current
+      const captions = updater(current.captions)
+      return { ...current, captions }
+    })
+    setExportState({
+      status: 'idle',
+      message: 'Edição manual aplicada. Exporte novamente quando estiver satisfeito.'
+    })
+  }
+
+  function updateCaptionText(index: number, text: string) {
+    replaceCaptions((captions) => captions.map((caption, currentIndex) => (
+      currentIndex === index ? { ...caption, text } : caption
+    )))
+  }
+
+  function removeCaption(index: number) {
+    replaceCaptions((captions) => captions.filter((_, currentIndex) => currentIndex !== index))
+  }
+
+  function splitCaptionAt(index: number, offset: number) {
+    let didSplit = false
+    replaceCaptions((captions) => {
+      const caption = captions[index]
+      if (!caption) return captions
+      const split = splitCaption(caption, offset)
+      if (!split) return captions
+      didSplit = true
+      return [
+        ...captions.slice(0, index),
+        split[0],
+        split[1],
+        ...captions.slice(index + 1)
+      ]
+    })
+
+    if (didSplit) {
+      window.setTimeout(() => captionInputRefs.current[index + 1]?.focus(), 0)
+    }
+  }
+
+  function handleCaptionKeyDown(index: number, event: React.KeyboardEvent<HTMLTextAreaElement>) {
+    const target = event.currentTarget
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault()
+      splitCaptionAt(index, target.selectionStart)
+      return
+    }
+
+    if ((event.key === 'Backspace' || event.key === 'Delete') && target.value.trim() === '') {
+      event.preventDefault()
+      removeCaption(index)
+    }
+  }
+
+  function toggleHelp(topic: HelpTopic) {
+    setOpenHelp((current) => current === topic ? null : topic)
+  }
+
   useEffect(() => {
     void checkEngine()
     void checkRuntime()
@@ -419,6 +542,22 @@ function App() {
       window.removeEventListener('drop', preventNativeFileOpen)
     }
   }, [])
+
+  useEffect(() => {
+    if (!openHelp) return undefined
+
+    const closeHelp = () => setOpenHelp(null)
+    const closeHelpOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') closeHelp()
+    }
+
+    window.addEventListener('mousedown', closeHelp)
+    window.addEventListener('keydown', closeHelpOnEscape)
+    return () => {
+      window.removeEventListener('mousedown', closeHelp)
+      window.removeEventListener('keydown', closeHelpOnEscape)
+    }
+  }, [openHelp])
 
   return (
     <main className="shell">
@@ -522,44 +661,142 @@ function App() {
           </div>
 
           <div className="option-grid">
-            <label className="toggle-card">
-              <input
-                type="checkbox"
-                checked={ignorePrepositions}
-                onChange={(event) => setIgnorePrepositions(event.target.checked)}
-                disabled={isTranscribing}
-              />
-              <span>
-                <strong>Ignorar preposições na contagem</strong>
-                <small>A densidade é uma preferência; cadência e coesão ainda podem ajustar o corte.</small>
-              </span>
-            </label>
+            <div className={`setting-card ${ignorePrepositions ? 'is-on' : ''}`}>
+              <strong>Ignorar preposições</strong>
+              <div className="setting-actions">
+                <button
+                  className="help-button"
+                  type="button"
+                  aria-label="Explicar preposições"
+                  onMouseDown={(event) => event.stopPropagation()}
+                  onClick={() => toggleHelp('prepositions')}
+                >
+                  ?
+                </button>
+                <button
+                  className="toggle-pill"
+                  type="button"
+                  role="switch"
+                  aria-checked={ignorePrepositions}
+                  onClick={() => setIgnorePrepositions((current) => !current)}
+                  disabled={isTranscribing}
+                >
+                  <span className="switch-track" aria-hidden="true">
+                    <span className="switch-thumb" />
+                  </span>
+                </button>
+              </div>
+              {openHelp === 'prepositions' && (
+                <div
+                  className="setting-popover"
+                  role="dialog"
+                  aria-label="Ajuda sobre preposições"
+                  onMouseDown={(event) => event.stopPropagation()}
+                >
+                  Preposições como “a”, “en”, “de” e “para” podem acompanhar a palavra vizinha sem contar como uma palavra extra. A pausa real e o limite de 17 caracteres continuam mandando.
+                </div>
+              )}
+            </div>
 
-            <label className="toggle-card">
-              <input
-                type="checkbox"
-                checked={preserveCommasPeriods}
-                onChange={(event) => setPreserveCommasPeriods(event.target.checked)}
-                disabled={isTranscribing}
-              />
-              <span>
-                <strong>Manter vírgulas e pontos</strong>
-                <small>Controla apenas “,” e “.”. ¿ ? ¡ ! são sempre preservados.</small>
-              </span>
-            </label>
+            <div className={`setting-card ${preserveCommasPeriods ? 'is-on' : ''}`}>
+              <strong>Manter vírgulas e pontos</strong>
+              <div className="setting-actions">
+                <button
+                  className="help-button"
+                  type="button"
+                  aria-label="Explicar pontuação"
+                  onMouseDown={(event) => event.stopPropagation()}
+                  onClick={() => toggleHelp('punctuation')}
+                >
+                  ?
+                </button>
+                <button
+                  className="toggle-pill"
+                  type="button"
+                  role="switch"
+                  aria-checked={preserveCommasPeriods}
+                  onClick={() => setPreserveCommasPeriods((current) => !current)}
+                  disabled={isTranscribing}
+                >
+                  <span className="switch-track" aria-hidden="true">
+                    <span className="switch-thumb" />
+                  </span>
+                </button>
+              </div>
+              {openHelp === 'punctuation' && (
+                <div
+                  className="setting-popover"
+                  role="dialog"
+                  aria-label="Ajuda sobre pontuação"
+                  onMouseDown={(event) => event.stopPropagation()}
+                >
+                  Controla só vírgulas e pontos nas bordas. Interrogação, exclamação e sinais espanhóis como “¿” e “¡” são sempre preservados.
+                </div>
+              )}
+            </div>
 
-            <label className="toggle-card">
-              <input
-                type="checkbox"
-                checked={formatMonetaryThousands}
-                onChange={(event) => setFormatMonetaryThousands(event.target.checked)}
-                disabled={isTranscribing}
-              />
-              <span>
-                <strong>Valores monetários no formato “mil”</strong>
-                <small>Ex.: ₲200.000 / 200 mil guaraníes → 200 mil. Outros números não são alterados.</small>
-              </span>
-            </label>
+            <div className={`setting-card ${formatMonetaryThousands ? 'is-on' : ''}`}>
+              <strong>Moeda em formato “mil”</strong>
+              <div className="setting-actions">
+                <button
+                  className="help-button"
+                  type="button"
+                  aria-label="Explicar valores monetários"
+                  onMouseDown={(event) => event.stopPropagation()}
+                  onClick={() => toggleHelp('money')}
+                >
+                  ?
+                </button>
+                <button
+                  className="toggle-pill"
+                  type="button"
+                  role="switch"
+                  aria-checked={formatMonetaryThousands}
+                  onClick={() => setFormatMonetaryThousands((current) => !current)}
+                  disabled={isTranscribing}
+                >
+                  <span className="switch-track" aria-hidden="true">
+                    <span className="switch-thumb" />
+                  </span>
+                </button>
+              </div>
+              {openHelp === 'money' && (
+                <div
+                  className="setting-popover"
+                  role="dialog"
+                  aria-label="Ajuda sobre valores monetários"
+                  onMouseDown={(event) => event.stopPropagation()}
+                >
+                  Quando reconhecer dinheiro em guaraníes, o app pode padronizar como “200 mil”. Números comuns de contagem não são tratados como moeda.
+                </div>
+              )}
+            </div>
+
+            <div className="setting-card is-static">
+              <strong>Trava visual: 17 caracteres</strong>
+              <div className="setting-actions">
+                <button
+                  className="help-button"
+                  type="button"
+                  aria-label="Explicar trava visual"
+                  onMouseDown={(event) => event.stopPropagation()}
+                  onClick={() => toggleHelp('visual-limit')}
+                >
+                  ?
+                </button>
+                <span className="static-pill">ativa</span>
+              </div>
+              {openHelp === 'visual-limit' && (
+                <div
+                  className="setting-popover"
+                  role="dialog"
+                  aria-label="Ajuda sobre trava visual"
+                  onMouseDown={(event) => event.stopPropagation()}
+                >
+                  Se uma legenda tiver mais de uma palavra e passar de 17 caracteres contando espaços, o engine separa. Palavra única longa continua inteira.
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="engine-line">
@@ -600,7 +837,11 @@ function App() {
               {transcription.status === 'success' && (
                 <button
                   onClick={exportSrt}
-                  disabled={exportState.status === 'loading'}
+                  disabled={
+                    exportState.status === 'loading' ||
+                    transcription.captions.length === 0 ||
+                    transcription.captions.some((caption) => !caption.text.trim())
+                  }
                 >
                   {exportState.status === 'loading' ? 'Exportando…' : 'Exportar SRT'}
                 </button>
@@ -649,14 +890,44 @@ function App() {
 
               <div className="preview-heading">
                 <strong>Todas as captions</strong>
-                <small>{transcription.captions.length} itens</small>
+                <small>Enter divide · vazio + Backspace remove · esquerda mostra caracteres</small>
               </div>
               <div className="caption-preview">
                 {transcription.captions.map((caption, index) => (
                   <div className="caption-row" key={`${caption.start}-${index}`}>
-                    <span className="caption-number">{String(index + 1).padStart(2, '0')}</span>
-                    <strong>{caption.text}</strong>
-                    <small>{caption.start.toFixed(2)} → {caption.end.toFixed(2)}</small>
+                    <span className="caption-character-count" title="Caracteres nesta legenda">
+                      {captionCharacterCount(caption.text)}
+                    </span>
+                    <textarea
+                      ref={(element) => { captionInputRefs.current[index] = element }}
+                      value={caption.text}
+                      rows={1}
+                      spellCheck={false}
+                      aria-label={`Editar caption ${index + 1}`}
+                      onChange={(event) => updateCaptionText(index, event.target.value)}
+                      onKeyDown={(event) => handleCaptionKeyDown(index, event)}
+                    />
+                    <div className="caption-tools">
+                      <small>{caption.start.toFixed(2)} → {caption.end.toFixed(2)}</small>
+                      <div className="caption-tool-buttons">
+                        <button
+                          className="mini-button"
+                          type="button"
+                          title="Dividir no meio do texto"
+                          onClick={() => splitCaptionAt(index, Math.floor(caption.text.length / 2))}
+                        >
+                          Dividir
+                        </button>
+                        <button
+                          className="mini-button danger"
+                          type="button"
+                          title="Excluir este segmento"
+                          onClick={() => removeCaption(index)}
+                        >
+                          Excluir
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>

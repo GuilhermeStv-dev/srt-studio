@@ -1,0 +1,29 @@
+{
+  "name": "es_py_deictic_and_countdown",
+  "description": "Mantém pares curtos como 'Acá tenemos' quando falados colados e isola dígitos simples de contagem.",
+  "config": {
+    "target_words": 1,
+    "ignore_prepositions": true,
+    "preserve_commas_periods": true
+  },
+  "tokens": [
+    { "text": "Acá", "start": 0.0, "end": 0.36 },
+    { "text": "tenemos", "start": 0.36, "end": 0.74 },
+    { "text": "Comenzamos", "start": 1.1, "end": 1.52 },
+    { "text": "en", "start": 1.52, "end": 1.64 },
+    { "text": "5", "start": 1.64, "end": 1.82 },
+    { "text": "4", "start": 1.94, "end": 2.04 },
+    { "text": "3", "start": 2.14, "end": 2.24 },
+    { "text": "2", "start": 2.34, "end": 2.44 },
+    { "text": "1", "start": 2.54, "end": 2.64 }
+  ],
+  "expected_captions": [
+    "Acá tenemos",
+    "Comenzamos en",
+    "5",
+    "4",
+    "3",
+    "2",
+    "1"
+  ]
+}

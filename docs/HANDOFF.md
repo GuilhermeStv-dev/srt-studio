@@ -17,6 +17,33 @@ Checkpoint de 2026-08-26:
 - a CI Windows gerou e validou `SRTX-Setup.exe`, mas o upload como Actions artifact pode falhar quando a cota de artifacts do GitHub Actions estiver cheia;
 - build interno `v0.2.0-internal.1` publicado em GitHub Release com `SRTX-Setup.exe`.
 
+Checkpoint de 2026-08-28:
+
+- regressão real de segmentação `CONFIANZUDO TAMBIÉN` reproduzida em fixture;
+- adicionada trava visual universal de 17 caracteres para captions com mais de uma palavra física;
+- a opção de ignorar preposições não pode mais anexar uma preposição se o texto renderizado passar de 17 caracteres;
+- opções da UI trocadas de checkboxes para toggle buttons acessíveis;
+- progresso da transcrição conectado à barra de tarefas do Windows por `BrowserWindow.setProgressBar`.
+
+Checkpoint de 2026-08-28, segunda rodada:
+
+- calibrado par curto `acá tenemos` para ficar junto quando o gap real é colado e o texto cabe na trava visual;
+- dígitos simples de contagem/chamada (`5`, `4`, `3`, `2`, `1`) passam a ser captions isoladas;
+- preview de captions agora permite editar texto, dividir com Enter/botão e excluir segmentos antes da exportação;
+- coluna lateral do preview mostra quantidade de caracteres da caption, não índice;
+- cards de opções ficaram compactos e mostram explicação clara somente ao clicar em `?`.
+
+Checkpoint de 2026-08-29:
+
+- removido estado verde dos cards de opção ativos;
+- toggles compactos revisados para usar switch roxo, com foco acessível sem contorno amarelo nativo;
+- explicações dos botões `?` agora aparecem como popovers flutuantes e fecham ao clicar fora ou pressionar Esc.
+
+Checkpoint de 2026-09-23:
+
+- adicionado build macOS Apple Silicon (D-015) com CI `macos-packaging.yml` e publicação de `SRTX-macOS-arm64.zip` nas Releases `v*`;
+- a branch `codex/fix-settings-popover-toggles` (base do v0.2.3) foi integrada à `main`, para que Windows e macOS saiam do mesmo código.
+
 Fases atuais:
 
 - Fase 2 — transcrição: concluída funcionalmente;
@@ -46,6 +73,9 @@ Regras estruturais:
 - `¿`, `?`, `¡`, `!` sempre são preservados;
 - opção de pontuação controla somente vírgulas e pontos;
 - valores monetários reconhecidos são sempre captions isoladas;
+- captions com mais de uma palavra física não podem passar de 17 caracteres renderizados;
+- pares demonstrativos curtos como `acá tenemos` podem ficar juntos quando falados sem pausa relevante;
+- dígitos simples de contagem/chamada são isolados em captions próprias;
 - `N mil` é opcional e não pode reinterpretar números comuns;
 - cues precisam ter duração positiva e nunca podem sobrepor/regredir.
 
@@ -104,6 +134,7 @@ A fixture pode incluir `normalization.monetary_thousands` quando o caso precisar
 - retry preservando arquivo/configuração;
 - preview completo de captions;
 - exportação SRT com Save As e confirmação de sobrescrita;
+- revisão manual de captions no preview antes da exportação;
 - layout desktop refinado em duas colunas + preview em largura total;
 - informações de engine/runtime saudável, WordTokens brutos e explicações técnicas foram removidas da experiência normal;
 - detalhes técnicos devem aparecer somente quando houver erro que exija ação.
