@@ -41,12 +41,14 @@ jobs:
         run: npm run make:mac
       - name: Verify app bundle
         run: |
+          set -x
           app=$(find release/forge -maxdepth 3 -name 'SRTX.app' -path '*darwin-arm64*' | head -1)
           test -n "$app" || { echo 'SRTX.app não foi gerado.'; exit 1; }
           codesign --verify --deep --strict "$app"
           file "$app/Contents/MacOS/SRTX" | grep -q arm64
           test -x "$app/Contents/Resources/srt-studio-engine/srt-studio-engine"
-          test -f "$app/Contents/Resources/srtx.icns"
+          # O packager copia o ícone do app como electron.icns.
+          cmp build/branding/srtx.icns "$app/Contents/Resources/electron.icns"
           echo "App: $app"
       - name: Smoke test standalone engine (transcription + UTF-8)
         run: |
