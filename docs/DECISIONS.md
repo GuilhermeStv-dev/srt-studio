@@ -103,3 +103,13 @@ A primeira versão usava aproximadamente 12 caracteres por caption como preferê
 **Otimização:** escolher fronteiras globalmente por score/ programação dinâmica, em vez de greedy rígido por contagem.
 
 **Regras estruturais preservadas:** moeda continua sempre isolada; `¿ ? ¡ !` continuam obrigatórios; SRT continua sem overlap/duração zero/timestamp regressivo.
+
+## D-013 — Build macOS Apple Silicon
+
+**Decisão:** além do instalador Windows, o SRTX é distribuído como `SRTX.app` para macOS arm64 (M1/M2/M3…), gerado pela CI `macos-packaging.yml` em `macos-14`.
+
+**Motivo:** permitir uso num MacBook sem transformar o produto em site/serviço e sem abrir mão do fluxo local-first (D-003).
+
+**Como:** mesmo Electron e mesmo engine Python; o engine é empacotado com PyInstaller via `scripts/build-engine.sh`. No Mac não há CUDA: o runtime cai automaticamente para CPU `int8`.
+
+**Limites:** app assinado apenas ad-hoc (sem Apple Developer ID/notarização). Windows continua sendo a plataforma principal de validação.

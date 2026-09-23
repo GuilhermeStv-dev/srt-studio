@@ -4,11 +4,16 @@ const path = require('node:path')
 
 const repoRoot = path.resolve(__dirname, '../..')
 const engineRuntime = path.join(repoRoot, 'dist', 'engine', 'srt-studio-engine')
-const engineExe = path.join(engineRuntime, 'srt-studio-engine.exe')
+const engineExe = path.join(
+  engineRuntime,
+  process.platform === 'win32' ? 'srt-studio-engine.exe' : 'srt-studio-engine'
+)
 const releaseDir = path.join(repoRoot, 'release', 'forge')
 const brandingDir = path.join(repoRoot, 'build', 'branding')
 const brandIcon = path.join(brandingDir, 'srtx.ico')
 const brandPng = path.join(brandingDir, 'srtx.png')
+// Sem extensão: o packager escolhe srtx.ico no Windows e srtx.icns no macOS.
+const brandIconBase = path.join(brandingDir, 'srtx')
 const brandIconScript = path.join(repoRoot, 'scripts', 'build-brand-icon.mjs')
 const projectPython = path.join(repoRoot, '.venv', 'Scripts', 'python.exe')
 
@@ -35,7 +40,9 @@ module.exports = {
     ],
     name: 'SRTX',
     executableName: 'SRTX',
-    icon: brandIcon,
+    icon: brandIconBase,
+    appBundleId: 'dev.guilhermestv.srtx',
+    appCategoryType: 'public.app-category.video',
     extraResource: [engineRuntime, brandIcon, brandPng],
     win32metadata: {
       CompanyName: 'Guilherme Estevão',
@@ -56,27 +63,45 @@ module.exports = {
         setupExe: 'SRTX-Setup.exe',
         setupIcon: brandIcon
       }
+    },
+    {
+      name: '@electron-forge/maker-zip',
+      platforms: ['darwin']
     }
   ],
   hooks: {
     prePackage: async () => {
-      if (process.platform !== 'win32') {
-        throw new Error('O instalador Windows deve ser gerado em um host Windows.')
+      if (process.platform === 'win32') {
+        run('cmd.exe', ['/d', '/s', '/c', 'npm run build'], __dirname)
+        run(
+          'pwsh',
+          ['-ExecutionPolicy', 'Bypass', '-File', path.join(repoRoot, 'scripts', 'build-engine.ps1')],
+          repoRoot
+        )
+      } else if (process.platform === 'darwin') {
+        run('npm', ['run', 'build'], __dirname)
+        run('bash', [path.join(repoRoot, 'scripts', 'build-engine.sh')], repoRoot)
+      } else {
+        throw new Error('O SRTX é empacotado apenas em hosts Windows ou macOS.')
       }
-
-      run('cmd.exe', ['/d', '/s', '/c', 'npm run build'], __dirname)
-      run(
-        'pwsh',
-        ['-ExecutionPolicy', 'Bypass', '-File', path.join(repoRoot, 'scripts', 'build-engine.ps1')],
-        repoRoot
-      )
       run(process.execPath, [brandIconScript], repoRoot)
 
       if (!existsSync(engineExe)) {
         throw new Error(`Engine standalone não foi gerado em ${engineExe}`)
       }
-      if (!existsSync(brandIcon) || !existsSync(brandPng)) {
-        throw new Error('Assets SRTX de ícone não foram gerados para o pacote Windows.')
+      if (!existsSync(brandIcon) || !existsSync(brandPng) || !existsSync(`${brandIconBase}.icns`)) {
+        throw new Error('Assets SRTX de ícone não foram gerados para o pacote.')
+      }
+    },
+    postPackage: async (_config, { platform, outputPaths }) => {
+      if (platform !== 'darwin') return
+
+      // Apple Silicon recusa binários sem assinatura ("app danificado").
+      // Sem conta Apple Developer, usamos assinatura ad-hoc.
+      for (const outputPath of outputPaths) {
+        const appBundle = path.join(outputPath, 'SRTX.app')
+        run('codesign', ['--force', '--deep', '--sign', '-', appBundle], outputPath)
+        run('codesign', ['--verify', '--deep', '--strict', appBundle], outputPath)
       }
     }
   }
