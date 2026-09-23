@@ -1,6 +1,6 @@
 # Regras de produto — MVP
 
-- Windows local.
+- Windows local; build secundário para macOS Apple Silicon (D-013).
 - Offline após o modelo necessário estar baixado.
 - Sem API paga.
 - Idioma prioritário: espanhol paraguaio (ES-PY).

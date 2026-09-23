@@ -7,6 +7,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const outputDir = resolve(root, 'build', 'branding')
 const pngPath = resolve(outputDir, 'srtx.png')
 const icoPath = resolve(outputDir, 'srtx.ico')
+const icnsPath = resolve(outputDir, 'srtx.icns')
 const size = 256
 
 const colors = {
@@ -139,8 +140,22 @@ function icoFromPng(png) {
   return Buffer.concat([header, entry, png])
 }
 
+// ICNS aceita PNG embutido; `ic08` é a entrada 256x256 usada pelo macOS.
+function icnsFromPng(png) {
+  const entryHeader = Buffer.alloc(8)
+  entryHeader.write('ic08', 0, 'ascii')
+  entryHeader.writeUInt32BE(png.length + 8, 4)
+
+  const header = Buffer.alloc(8)
+  header.write('icns', 0, 'ascii')
+  header.writeUInt32BE(8 + 8 + png.length, 4)
+
+  return Buffer.concat([header, entryHeader, png])
+}
+
 mkdirSync(outputDir, { recursive: true })
 const png = buildImage()
 writeFileSync(pngPath, png)
 writeFileSync(icoPath, icoFromPng(png))
+writeFileSync(icnsPath, icnsFromPng(png))
 console.log(`Brand icon: ${icoPath}`)

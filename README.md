@@ -1,12 +1,14 @@
 # SRT Studio
 
-Aplicativo desktop Windows para transformar áudio/vídeo em **SRT pronto para edição no Premiere**, com operação prioritariamente local e offline.
+Aplicativo desktop (Windows e macOS Apple Silicon) para transformar áudio/vídeo em **SRT pronto para edição no Premiere**, com operação prioritariamente local e offline.
 
 ## Estado atual
 
 Build interno funcional para Windows disponível em GitHub Releases.
 
 Download: [`SRTX-Setup.exe`](https://github.com/GuilhermeStv-dev/srt-studio/releases/download/v0.2.0-internal.1/SRTX-Setup.exe)
+
+macOS (M1/M2/M3…): `SRTX-macOS-arm64.zip` nas próximas Releases `v*` — veja instalação em [`docs/DISTRIBUTION.md`](docs/DISTRIBUTION.md#macos-apple-silicon).
 
 Status resumido:
 

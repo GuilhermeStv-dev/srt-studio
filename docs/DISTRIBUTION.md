@@ -1,4 +1,4 @@
-# Distribuição Windows — SRT Studio
+# Distribuição — SRT Studio (Windows e macOS)
 
 ## Objetivo
 
@@ -109,3 +109,43 @@ Release interna atual:
 ```text
 https://github.com/GuilhermeStv-dev/srt-studio/releases/tag/v0.2.0-internal.1
 ```
+
+## macOS (Apple Silicon)
+
+Decisão registrada em `docs/DECISIONS.md` (D-013).
+
+### Build
+
+Em um Mac arm64 com Python 3.12 e Node 22:
+
+```bash
+python3 -m venv .venv
+npm install
+npm run make:mac
+```
+
+O Forge executa `electron-vite build`, `scripts/build-engine.sh` (PyInstaller) e o gerador de ícones (`srtx.icns`). Depois do empacotamento, o hook `postPackage` assina o `SRTX.app` de forma ad-hoc — sem isso o macOS Apple Silicon considera o app "danificado".
+
+Saída:
+
+```text
+release/forge/make/zip/darwin/arm64/SRTX-darwin-arm64-<versão>.zip
+```
+
+A CI `.github/workflows/macos-packaging.yml` roda em `macos-14` (arm64), valida assinatura/arquitetura, faz uma transcrição real com o modelo `tiny` usando o engine standalone e verifica UTF-8 no SRT. Em tags `v*`, publica `SRTX-macOS-arm64.zip` na mesma Release do instalador Windows.
+
+### Instalação no Mac
+
+1. Baixar `SRTX-macOS-arm64.zip` da Release e abrir (o Safari extrai automaticamente).
+2. Arrastar `SRTX.app` para **Aplicativos**.
+3. Como o app não é notarizado pela Apple, liberar a quarentena uma vez no Terminal:
+
+   ```bash
+   xattr -dr com.apple.quarantine /Applications/SRTX.app
+   ```
+
+   Alternativa sem Terminal: tentar abrir, depois **Ajustes do Sistema → Privacidade e Segurança → Abrir Mesmo Assim**.
+
+### Desempenho
+
+Sem CUDA no Mac, a transcrição usa CPU `int8` via CTranslate2. Em M1 Pro, `small` e `medium` são as opções práticas; `large-v3` funciona, mas é bem mais lento. Os modelos são baixados no primeiro uso para o cache do usuário (`~/.cache/huggingface`), igual ao Windows.

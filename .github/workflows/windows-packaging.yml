@@ -159,11 +159,20 @@ jobs:
             Baixe `SRTX-Setup.exe` para instalar. O pacote também inclui os arquivos Squirrel (`RELEASES` e `.nupkg`) usados pelo instalador.
           '@
 
-          gh release create $env:GITHUB_REF_NAME `
+          # O workflow macOS pode criar a mesma release em paralelo.
+          gh release view $env:GITHUB_REF_NAME --repo $env:GITHUB_REPOSITORY *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $env:GITHUB_REF_NAME `
+              --repo $env:GITHUB_REPOSITORY `
+              --title "SRTX $env:GITHUB_REF_NAME" `
+              --notes $releaseNotes `
+              --prerelease
+          }
+
+          gh release upload $env:GITHUB_REF_NAME `
             --repo $env:GITHUB_REPOSITORY `
-            --title "SRTX $env:GITHUB_REF_NAME" `
-            --notes $releaseNotes `
-            --prerelease `
+            --clobber `
             release/forge/make/squirrel.windows/x64/SRTX-Setup.exe `
-            release/forge/make/squirrel.windows/x64/SRTX-*-full.nupkg `
+            (Get-Item release/forge/make/squirrel.windows/x64/SRTX-*-full.nupkg).FullName `
             release/forge/make/squirrel.windows/x64/RELEASES
+          if ($LASTEXITCODE -ne 0) { throw 'Falha ao publicar artefatos Windows na release.' }
