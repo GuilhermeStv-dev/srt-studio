@@ -2,7 +2,7 @@ name: macOS packaging
 
 on:
   push:
-    branches: [main, claude/jolly-cannon-jzx1yc]
+    branches: [main]
     tags:
       - 'v*'
   pull_request:
