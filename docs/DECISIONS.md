@@ -103,3 +103,44 @@ A primeira versão usava aproximadamente 12 caracteres por caption como preferê
 **Otimização:** escolher fronteiras globalmente por score/ programação dinâmica, em vez de greedy rígido por contagem.
 
 **Regras estruturais preservadas:** moeda continua sempre isolada; `¿ ? ¡ !` continuam obrigatórios; SRT continua sem overlap/duração zero/timestamp regressivo.
+
+## D-013 — PROPOSTA: fase Voz/Dublagem local (pós-MVP)
+
+**Status:** proposta, **pendente de aprovação explícita do usuário**. Enquanto este status não mudar, nenhum agente deve implementar código de TTS, clonagem ou dublagem.
+
+**Contexto:** avaliamos o projeto open-source VoiceStudio (`debpalash/VoiceStudio`), um app local estilo ElevenLabs com Electron + backend Python, motores de voz plugáveis em subprocesso e pipeline de dublagem (transcrever → traduzir → TTS por segmento → mixar). A arquitetura é próxima da nossa, e o pipeline de dublagem reaproveita quase tudo o que o SRT Studio já faz até `CaptionCue[]`.
+
+**Proposta:** adicionar, **depois de concluídas as fases do MVP** (no mínimo a Fase 4 validada no Premiere), uma fase de voz local cujo primeiro recurso é **locução/dublagem sincronizada a partir dos cues já gerados**, e não um gerador de voz genérico.
+
+Pipeline proposto:
+
+```
+mídia → faster-whisper → WordToken[] → CaptionCue[]
+      → [tradução opcional — a decidir]
+      → TTS por cue → ajuste à duração do cue → mix → WAV/áudio + SRT
+```
+
+**Arquitetura proposta (sem mudar a stack de D-001/D-002/D-003):**
+- novo módulo `engine/tts/` no engine Python, seguindo o padrão de adapter isolado de `engine/transcription/faster_whisper_adapter.py`;
+- cada motor TTS roda em **subprocesso com ambiente Python próprio**, para não conflitar torch/CUDA com o `faster-whisper` (lição tirada do VoiceStudio);
+- a UI React apenas configura, dispara e reproduz resultados; regras de tempo, ajuste de duração e mix pertencem ao engine;
+- 100% local após download do modelo; sem API paga, conta ou backend.
+
+**Licença — regras obrigatórias:**
+- **Não copiar código do VoiceStudio.** Ele é AGPL-3.0; copiar qualquer trecho obrigaria o SRT Studio inteiro a adotar AGPL. Ele serve apenas como referência de arquitetura (reimplementação própria).
+- Integração com um VoiceStudio instalado separadamente, via API HTTP local, é aceitável apenas como experimento pessoal, não como dependência do produto.
+- Só adotar modelos cujo **código e pesos** permitam o uso pretendido. Pesos com licença não comercial (ex.: CC-BY-NC — caso do OmniVoice padrão do VoiceStudio) ficam fora.
+- Candidatos a avaliar no spike, com licença conferida na data da decisão: Chatterbox (clonagem, multilíngue com espanhol) e Kokoro (leve, sem clonagem).
+- Registrar no repositório a licença de cada modelo adotado.
+
+**Regras de produto propostas:**
+- clonagem de voz só com áudio de referência fornecido pelo usuário e confirmação explícita de consentimento do dono da voz;
+- áudio gerado nunca sobrescreve mídia ou arquivos existentes sem confirmação (D-008);
+- o áudio de cada cue deve caber na janela do cue ou ter regra explícita de ajuste (time-stretch limitado ou relatório de excesso); nunca gerar overlap silencioso entre falas;
+- o SRT continua obedecendo D-007; a fase de voz não altera a semântica de exportação SRT.
+
+**Questões em aberto para o usuário:**
+1. Aprovar ou não a fase e sua posição no roadmap (após Fase 4, após Fase 8 ou outra).
+2. Uso pretendido: pessoal/interno ou comercial (define quais modelos são aceitáveis).
+3. Tradução entra no escopo? Se sim, deve ser local (ex.: modelo de tradução offline), mantendo D-003.
+4. Formato de saída: só áudio dublado, áudio por cue para o Premiere, ou vídeo mixado.

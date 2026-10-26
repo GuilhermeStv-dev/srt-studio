@@ -164,6 +164,27 @@ Entregas:
 
 Critério de saída: instalação limpa em outra máquina Windows sem depender do ambiente de desenvolvimento.
 
+## Fase 9 — Voz e dublagem local 💡 (proposta, pós-MVP)
+
+**Status:** proposta registrada em `docs/DECISIONS.md` (D-013), **pendente de aprovação do usuário**. Não implementar enquanto D-013 estiver como proposta.
+
+Objetivo: gerar locução/dublagem local sincronizada a partir dos `CaptionCue[]` que o SRT Studio já produz.
+
+Pré-requisito: Fase 4 validada no Premiere (posição exata no roadmap a decidir na aprovação).
+
+Etapas propostas, uma entrega pequena por vez:
+
+1. **Spike de modelo:** comparar candidatos com licença de código e pesos compatível (ex.: Chatterbox, Kokoro) em espanhol ES-PY, medindo qualidade, velocidade em CPU/CUDA e tamanho; registrar a escolha e a licença.
+2. **Adapter TTS:** `engine/tts/` em subprocesso com ambiente Python próprio; CLI `tts` que gera WAV a partir de texto; testes de contrato.
+3. **Locução a partir do SRT/cues:** TTS por cue, ajuste à duração do cue (time-stretch limitado ou relatório de excesso), mix em uma faixa de áudio; nunca gerar overlap silencioso.
+4. **UI:** escolher voz, gerar, ouvir e exportar áudio; lógica permanece no engine.
+5. **Clonagem com consentimento:** referência fornecida pelo usuário + confirmação explícita de consentimento.
+6. **Tradução (opcional, a decidir):** somente local/offline.
+
+Fora desta fase: copiar código do VoiceStudio (AGPL-3.0), modelos com pesos não comerciais, APIs pagas/cloud.
+
+Critério de saída (proposto): a partir de um vídeo ES-PY real, o app gera localmente uma faixa de áudio sincronizada com os cues, sem overlap, importável no Premiere, com modelo de licença registrada.
+
 ## Fora do MVP
 
 Não implementar sem nova decisão explícita:
@@ -175,7 +196,8 @@ Não implementar sem nova decisão explícita:
 - API paga de transcrição;
 - assistente de IA/chat;
 - colaboração multiusuário;
-- sync em nuvem.
+- sync em nuvem;
+- voz/TTS/clonagem/dublagem (proposta em D-013 / Fase 9, aguardando aprovação).
 
 ## Checkpoint atual
 
