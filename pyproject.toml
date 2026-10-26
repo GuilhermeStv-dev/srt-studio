@@ -15,6 +15,9 @@ dev = [
 ]
 transcription = [
   "faster-whisper>=1.2,<2",
+  # PyAV 19 removeu `metadata_errors`, que o faster-whisper 1.2.x ainda passa
+  # para `av.open` ao decodificar áudio; sem este limite a transcrição quebra.
+  "av>=11,<19",
 ]
 packaging = [
   "pyinstaller>=6.21,<7",
