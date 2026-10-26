@@ -33,6 +33,8 @@
 - [x] progresso real durante inferência
 - [x] cancelamento do subprocesso ativo
 - [x] reparo de timestamps colapsados por arredondamento, incluindo caso `¿Tenés` com duração zero
+- [x] `av>=11,<19` fixado: PyAV 19 removeu `metadata_errors`, que o faster-whisper 1.2.x passa a `av.open`; builds novos (macOS e Windows) não conseguiam decodificar áudio. Regressão em `tests/engine/test_audio_decode.py` (roda onde o extra `transcription` está instalado)
+- [ ] smoke de transcrição no pacote Windows (hoje só o macOS transcreve na CI)
 - [ ] concluir CUDA/cuDNN para inferência GPU na RTX
 
 ## Segmentação ES-PY — D-012
