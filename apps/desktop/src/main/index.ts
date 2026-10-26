@@ -254,7 +254,7 @@ function createWindow(): void {
     height: 780,
     minWidth: 860,
     minHeight: 620,
-    backgroundColor: '#101114',
+    backgroundColor: '#FDFCFC',
     ...(icon ? { icon } : {}),
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
@@ -361,6 +361,28 @@ app.whenReady().then(() => {
       signalSent: signaled || job.child.killed
     }
   })
+
+  ipcMain.handle(
+    'engine:segment',
+    async (_event, input: {
+      words: Array<{ text: string; start: number; end: number; probability?: number | null }>
+      segmentation: {
+        target_words: number
+        ignore_prepositions: boolean
+        preserve_commas_periods: boolean
+        monetary_thousands: boolean
+      }
+    }) => {
+      if (!Array.isArray(input.words) || input.words.length === 0) {
+        throw new Error('É preciso transcrever antes de gerar legendas')
+      }
+
+      return runEngineJson(['segment'], false, {
+        words: input.words,
+        segmentation: input.segmentation
+      })
+    }
+  )
 
   ipcMain.handle(
     'srt:export',

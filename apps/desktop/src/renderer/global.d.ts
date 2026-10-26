@@ -38,6 +38,12 @@ type SuccessfulTranscriptionResult = {
   segmentation: SegmentationSettings
 }
 
+type SegmentResult = {
+  ok: true
+  captions: CaptionPreview[]
+  segmentation: SegmentationSettings
+}
+
 type TranscriptionResult =
   | SuccessfulTranscriptionResult
   | { ok: false; cancelled: true }
@@ -79,6 +85,10 @@ declare global {
         signalSent?: boolean
       }>
       onTranscriptionProgress(callback: (payload: TranscriptionProgress) => void): () => void
+      segment(input: {
+        words: TranscriptionWord[]
+        segmentation: SegmentationSettings
+      }): Promise<SegmentResult>
       exportSrt(input: {
         sourceFilePath: string
         captions: CaptionPreview[]

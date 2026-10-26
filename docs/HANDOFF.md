@@ -53,6 +53,22 @@ Fases atuais:
 - Fase 6 — UX/UI: em refinamento;
 - Fase 7 — calibração/regressão: iniciada com fixtures JSON.
 
+Checkpoint de 2026-10-26 — D-017, entrega 1:
+
+- D-017 aprovada: fluxo Transcrição → Revisão do texto → Legendas; no MVP sem dividir/juntar palavras, sem dicionário ortográfico, e as opções de segmentação ficam na etapa 3;
+- novo comando `python -m engine.cli segment`: lê `{"words": [...], "segmentation": {...}}` via stdin (aceita o próprio payload de `transcribe`) e devolve `{"ok", "captions", "segmentation"}`; erro → JSON em stderr e código 6;
+- `engine/pipeline.py` concentra a cadeia reparo de números → moeda → segmentação, usada por `transcribe` e `segment`, para que os dois nunca divirjam;
+- `segment` rejeita palavra vazia, palavra com espaço (dividir não é suportado), timestamp não finito, negativo, regressivo ou com duração negativa, e opções desconhecidas;
+- a UI ainda não usa `segment` (isso é a entrega 2).
+
+Checkpoint de 2026-10-26 — D-017, entrega 2:
+
+- IPC `engine:segment` no main/preload envia `{words, segmentation}` ao engine via stdin, como `export-srt`;
+- o estado de sucesso da transcrição guarda **todas** as `words` (antes guardava só 24 para a amostra), a `segmentation` que gerou as captions atuais e `captionsEdited`;
+- se as opções de segmentação diferirem das usadas, aparecem aviso e o botão “Regerar legendas”; regerar com edição manual pede `window.confirm`;
+- modelo/idioma continuam exigindo “Transcrever novamente”;
+- pendente: validação visual do usuário no `npm run dev` (Windows).
+
 ## Verificação obrigatória
 
 ```powershell
@@ -141,6 +157,7 @@ A fixture pode incluir `normalization.monetary_thousands` quando o caso precisar
 
 ## Próximo objetivo imediato
 
+0. validar no `npm run dev` a entrega 2 e o novo visual (D-018, branch `ai/ui-redesign`); depois, D-017 entrega 3: navegação em etapas (1 Transcrição · 2 Revisão · 3 Legendas) com as opções de segmentação na etapa 3 e confirmação antes de descartar edições.
 1. reinstalar/rodar uma build que contenha o commit mais recente antes de retestar o arquivo do usuário;
 2. adicionar novos trechos reais ao corpus de fixtures conforme o usuário apontar cortes ruins;
 3. não ajustar D-012 sem regressão correspondente;

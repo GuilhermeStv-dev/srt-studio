@@ -9,7 +9,12 @@ import {
   type Preset,
   type PresetSettings
 } from './presets'
+import '@fontsource-variable/inter'
+import '@fontsource/geist-mono/400.css'
 import './style.css'
+
+// Acento da marca SRTX (o restante da interface é monocromático).
+const BRAND_ACCENT = '#6C3BFF'
 
 type HealthState =
   | { status: 'idle' | 'loading' | 'success' | 'error'; message: string }
@@ -21,6 +26,15 @@ type RuntimeState =
 
 type Caption = { text: string; start: number; end: number }
 
+type Word = { text: string; start: number; end: number; probability?: number | null }
+
+type SegmentationSettings = {
+  target_words: number
+  ignore_prepositions: boolean
+  preserve_commas_periods: boolean
+  monetary_thousands: boolean
+}
+
 type TranscriptionState =
   | { status: 'idle'; message: string }
   | {
@@ -30,7 +44,19 @@ type TranscriptionState =
       progress: number | null
       cancelling: boolean
     }
-  | { status: 'success'; message: string; words: Caption[]; captions: Caption[] }
+  | {
+      status: 'success'
+      message: string
+      summary: string
+      words: Word[]
+      captions: Caption[]
+      segmentation: SegmentationSettings
+      captionsEdited: boolean
+    }
+  | { status: 'error'; message: string }
+
+type SegmentState =
+  | { status: 'idle' | 'loading'; message: string }
   | { status: 'error'; message: string }
 
 type ExportState =
@@ -67,6 +93,17 @@ function progressMessage(stage: string, progress: number | null): string {
   if (stage === 'finalizing') return 'Segmentando e validando captions…'
   if (stage === 'completed') return 'Finalizando resultado…'
   return 'Transcrevendo…'
+}
+
+function resultMessage(captionCount: number, wordCount: number, summary: string): string {
+  return `${captionCount} captions · ${wordCount} palavras · ${summary}`
+}
+
+function sameSegmentation(left: SegmentationSettings, right: SegmentationSettings): boolean {
+  return left.target_words === right.target_words &&
+    left.ignore_prepositions === right.ignore_prepositions &&
+    left.preserve_commas_periods === right.preserve_commas_periods &&
+    left.monetary_thousands === right.monetary_thousands
 }
 
 function captionCharacterCount(text: string): number {
@@ -123,6 +160,18 @@ function splitCaption(caption: Caption, requestedOffset: number): [Caption, Capt
   ]
 }
 
+function formatTime(seconds: number): string {
+  const minutes = Math.floor(seconds / 60)
+  const rest = seconds - minutes * 60
+  return `${String(minutes).padStart(2, '0')}:${rest.toFixed(2).padStart(5, '0')}`
+}
+
+function fitTextarea(element: HTMLTextAreaElement | null): void {
+  if (!element) return
+  element.style.height = 'auto'
+  element.style.height = `${element.scrollHeight}px`
+}
+
 function roundTime(value: number): number {
   return Math.round(value * 1000) / 1000
 }
@@ -156,11 +205,21 @@ function App() {
     status: 'idle',
     message: 'O SRT ficará disponível depois da transcrição.'
   })
+  const [segmentState, setSegmentState] = useState<SegmentState>({ status: 'idle', message: '' })
   const [openHelp, setOpenHelp] = useState<HelpTopic | null>(null)
   const captionInputRefs = useRef<Array<HTMLTextAreaElement | null>>([])
 
   const selectedName = useMemo(() => fileName(filePath), [filePath])
   const isTranscribing = transcription.status === 'loading'
+  const isSegmenting = segmentState.status === 'loading'
+  const currentSegmentation = useMemo<SegmentationSettings>(() => ({
+    target_words: targetWords,
+    ignore_prepositions: ignorePrepositions,
+    preserve_commas_periods: preserveCommasPeriods,
+    monetary_thousands: formatMonetaryThousands
+  }), [targetWords, ignorePrepositions, preserveCommasPeriods, formatMonetaryThousands])
+  const segmentationChanged = transcription.status === 'success' &&
+    !sameSegmentation(transcription.segmentation, currentSegmentation)
   const allPresets = useMemo(() => [...BUILTIN_PRESETS, ...customPresets], [customPresets])
   const currentSettings = useMemo<PresetSettings>(() => ({
     model,
@@ -384,11 +443,16 @@ function App() {
       }
 
       const fallbackLabel = result.runtime_warning ? ' · fallback CUDA → CPU' : ''
+      const summary = `${result.language} · ${result.device.toUpperCase()}${fallbackLabel} · ${result.duration.toFixed(1)}s`
+      setSegmentState({ status: 'idle', message: '' })
       setTranscription({
         status: 'success',
-        message: `${result.captions.length} captions · ${result.words.length} palavras · ${result.language} · ${result.device.toUpperCase()}${fallbackLabel} · ${result.duration.toFixed(1)}s`,
-        words: result.words.slice(0, 24),
-        captions: result.captions
+        message: resultMessage(result.captions.length, result.words.length, summary),
+        summary,
+        words: result.words,
+        captions: result.captions,
+        segmentation: result.segmentation,
+        captionsEdited: false
       })
       setExportState({
         status: 'idle',
@@ -398,6 +462,43 @@ function App() {
       setTranscription({
         status: 'error',
         message: error instanceof Error ? error.message : 'Falha ao transcrever'
+      })
+    }
+  }
+
+  async function regenerateCaptions() {
+    if (transcription.status !== 'success' || isSegmenting) return
+    if (
+      transcription.captionsEdited &&
+      !window.confirm('Regerar as legendas descarta as edições manuais feitas no preview. Continuar?')
+    ) {
+      return
+    }
+
+    const { words, summary } = transcription
+    const segmentation = currentSegmentation
+    setSegmentState({ status: 'loading', message: 'Gerando legendas com as opções atuais…' })
+    try {
+      const result = await window.srtStudio.segment({ words, segmentation })
+      setTranscription((current) => {
+        if (current.status !== 'success' || current.words !== words) return current
+        return {
+          ...current,
+          message: resultMessage(result.captions.length, words.length, summary),
+          captions: result.captions,
+          segmentation: result.segmentation,
+          captionsEdited: false
+        }
+      })
+      setSegmentState({ status: 'idle', message: '' })
+      setExportState({
+        status: 'idle',
+        message: 'Legendas regeradas sem retranscrever. Escolha onde salvar o SRT.'
+      })
+    } catch (error) {
+      setSegmentState({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Falha ao gerar legendas'
       })
     }
   }
@@ -458,7 +559,7 @@ function App() {
     setTranscription((current) => {
       if (current.status !== 'success') return current
       const captions = updater(current.captions)
-      return { ...current, captions }
+      return { ...current, captions, captionsEdited: true }
     })
     setExportState({
       status: 'idle',
@@ -559,396 +660,422 @@ function App() {
     }
   }, [openHelp])
 
-  return (
-    <main className="shell">
-      <section className="hero">
-        <div className="hero-topline">
-          <span className="eyebrow">TRANSCRIÇÃO · 0.7 DEV</span>
-          <span className={`status-dot ${runtime.status}`}>{runtime.message}</span>
-        </div>
-        <h1>SRT Studio</h1>
-        <p>
-          Transcrição local e captions inteligentes para um SRT rápido de editar no Premiere.
-        </p>
-      </section>
+  const hasCaptions = transcription.status === 'success'
+  const steps = [
+    { label: 'Arquivo', state: filePath ? 'done' : 'current', hint: filePath ? 'ok' : '' },
+    {
+      label: 'Transcrição',
+      state: hasCaptions ? 'done' : filePath ? 'current' : 'pending',
+      hint: isTranscribing ? '…' : hasCaptions ? 'ok' : ''
+    },
+    { label: 'Legendas', state: hasCaptions ? 'current' : 'pending', hint: '' }
+  ] as const
+  const topbarTitle = filePath ? selectedName : 'Nova transcrição'
+  const topbarSubtitle = transcription.status === 'success' || transcription.status === 'loading'
+    ? transcription.message
+    : filePath || 'Áudio ou vídeo local · o arquivo original nunca é modificado'
 
-      <section className="workspace">
-        <article
-          className={`card primary source-card ${isDragging ? 'dragging' : ''}`}
-          onDragEnter={handleDragEnter}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
+  function renderHelp(topic: HelpTopic, label: string, text: string) {
+    return (
+      <>
+        <button
+          className="help-button"
+          type="button"
+          aria-label={label}
+          onMouseDown={(event) => event.stopPropagation()}
+          onClick={() => toggleHelp(topic)}
         >
-          {isDragging && (
-            <div className="drop-overlay" aria-hidden="true">
-              <strong>Solte o arquivo aqui</strong>
-              <span>Áudio ou vídeo local</span>
-            </div>
-          )}
-          <div className="card-copy">
-            <span className="label">1 · Arquivo de origem</span>
-            <h2>{selectedName}</h2>
-            <p>{filePath || 'Áudio ou vídeo local. O arquivo original nunca é modificado.'}</p>
-            <small className="source-hint">Arraste um arquivo para este cartão ou use o seletor.</small>
-            {sourceMessage && <small className="source-error">{sourceMessage}</small>}
+          ?
+        </button>
+        {openHelp === topic && (
+          <div
+            className="setting-popover"
+            role="dialog"
+            aria-label={label}
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            {text}
           </div>
-          <button className="secondary" onClick={selectMedia} disabled={isTranscribing}>Selecionar arquivo</button>
-        </article>
+        )}
+      </>
+    )
+  }
 
-        <article className="card controls">
-          <span className="label">2 · Transcrição e segmentação</span>
+  function renderToggle(checked: boolean, onToggle: () => void, label: string) {
+    return (
+      <button
+        className="toggle"
+        type="button"
+        role="switch"
+        aria-label={label}
+        aria-checked={checked}
+        onClick={onToggle}
+        disabled={isTranscribing}
+      >
+        <span aria-hidden="true" />
+      </button>
+    )
+  }
 
-          <div className="preset-row">
-            <label className="preset-selector">
-              Preset
-              <select
-                value={activePresetId}
-                onChange={(event) => applyPreset(event.target.value)}
-                disabled={isTranscribing}
-              >
-                <option value="custom">Configuração personalizada</option>
-                <optgroup label="Padrões">
-                  {BUILTIN_PRESETS.map((preset) => (
-                    <option value={preset.id} key={preset.id}>{preset.name}</option>
-                  ))}
-                </optgroup>
-                {customPresets.length > 0 && (
-                  <optgroup label="Meus presets">
-                    {customPresets.map((preset) => (
-                      <option value={preset.id} key={preset.id}>{preset.name}</option>
-                    ))}
-                  </optgroup>
-                )}
-              </select>
-            </label>
-            <div className="preset-actions">
-              <button className="ghost" onClick={saveCurrentPreset} disabled={isTranscribing}>Salvar atual</button>
-              {activeCustomPreset && (
-                <button className="ghost danger" onClick={deleteActivePreset} disabled={isTranscribing}>Excluir preset</button>
-              )}
+  return (
+    <div className="app">
+      <aside className="sidebar">
+        <div className="brand">
+          <span className="brand-mark" style={{ background: BRAND_ACCENT }} aria-hidden="true">SX</span>
+          <span className="brand-name">SRTX</span>
+          <span className="brand-tag">beta</span>
+        </div>
+
+        <nav className="nav-section" aria-label="Etapas">
+          <p className="nav-title">Fluxo</p>
+          {steps.map((step, index) => (
+            <div className={`nav-step ${step.state}`} key={step.label} aria-current={step.state === 'current' ? 'step' : undefined}>
+              <span className="step-index">{step.state === 'done' ? '✓' : index + 1}</span>
+              <span>{step.label}</span>
+              {step.hint && <small>{step.hint}</small>}
             </div>
-            {presetMessage && <small className="preset-message">{presetMessage}</small>}
+          ))}
+        </nav>
+
+        <div className="sidebar-footer">
+          <div className="runtime-line">
+            <span className={`status-dot ${runtime.status}`} aria-hidden="true" />
+            <span>{runtime.message}</span>
           </div>
+          <span className="engine-version">{health.message}</span>
+          <button className="btn ghost small" onClick={checkRuntime} disabled={isTranscribing}>Reverificar runtime</button>
+          <span className="signature">Guilherme Estevão Editor</span>
+        </div>
+      </aside>
 
-          <div className="field-row three">
-            <label>
-              Modelo Whisper
-              <select value={model} onChange={(event) => setModel(event.target.value)} disabled={isTranscribing}>
-                <option value="large-v3">Large v3 · precisão</option>
-                <option value="medium">Medium · equilíbrio</option>
-                <option value="small">Small · mais rápido</option>
-              </select>
-            </label>
-            <label>
-              Idioma
-              <select value={language} onChange={(event) => setLanguage(event.target.value)} disabled={isTranscribing}>
-                <option value="es">Español / ES-PY</option>
-                <option value="pt">Português</option>
-                <option value="en">English</option>
-                <option value="auto">Detectar</option>
-              </select>
-            </label>
-            <label>
-              Densidade preferida
-              <select value={targetWords} onChange={(event) => setTargetWords(Number(event.target.value))} disabled={isTranscribing}>
-                <option value={1}>1 palavra · muito dinâmica</option>
-                <option value={2}>2 palavras · padrão</option>
-                <option value={3}>3 palavras</option>
-                <option value={4}>4 palavras</option>
-              </select>
-            </label>
+      <main
+        className={`main ${isDragging ? 'dragging' : ''}`}
+        onDragEnter={handleDragEnter}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
+        {isDragging && (
+          <div className="drop-overlay" aria-hidden="true">
+            <strong>Solte o arquivo aqui</strong>
+            <span>Áudio ou vídeo local</span>
           </div>
+        )}
 
-          <div className="option-grid">
-            <div className={`setting-card ${ignorePrepositions ? 'is-on' : ''}`}>
-              <strong>Ignorar preposições</strong>
-              <div className="setting-actions">
-                <button
-                  className="help-button"
-                  type="button"
-                  aria-label="Explicar preposições"
-                  onMouseDown={(event) => event.stopPropagation()}
-                  onClick={() => toggleHelp('prepositions')}
-                >
-                  ?
-                </button>
-                <button
-                  className="toggle-pill"
-                  type="button"
-                  role="switch"
-                  aria-checked={ignorePrepositions}
-                  onClick={() => setIgnorePrepositions((current) => !current)}
-                  disabled={isTranscribing}
-                >
-                  <span className="switch-track" aria-hidden="true">
-                    <span className="switch-thumb" />
-                  </span>
-                </button>
-              </div>
-              {openHelp === 'prepositions' && (
-                <div
-                  className="setting-popover"
-                  role="dialog"
-                  aria-label="Ajuda sobre preposições"
-                  onMouseDown={(event) => event.stopPropagation()}
-                >
-                  Preposições como “a”, “en”, “de” e “para” podem acompanhar a palavra vizinha sem contar como uma palavra extra. A pausa real e o limite de 17 caracteres continuam mandando.
-                </div>
-              )}
-            </div>
-
-            <div className={`setting-card ${preserveCommasPeriods ? 'is-on' : ''}`}>
-              <strong>Manter vírgulas e pontos</strong>
-              <div className="setting-actions">
-                <button
-                  className="help-button"
-                  type="button"
-                  aria-label="Explicar pontuação"
-                  onMouseDown={(event) => event.stopPropagation()}
-                  onClick={() => toggleHelp('punctuation')}
-                >
-                  ?
-                </button>
-                <button
-                  className="toggle-pill"
-                  type="button"
-                  role="switch"
-                  aria-checked={preserveCommasPeriods}
-                  onClick={() => setPreserveCommasPeriods((current) => !current)}
-                  disabled={isTranscribing}
-                >
-                  <span className="switch-track" aria-hidden="true">
-                    <span className="switch-thumb" />
-                  </span>
-                </button>
-              </div>
-              {openHelp === 'punctuation' && (
-                <div
-                  className="setting-popover"
-                  role="dialog"
-                  aria-label="Ajuda sobre pontuação"
-                  onMouseDown={(event) => event.stopPropagation()}
-                >
-                  Controla só vírgulas e pontos nas bordas. Interrogação, exclamação e sinais espanhóis como “¿” e “¡” são sempre preservados.
-                </div>
-              )}
-            </div>
-
-            <div className={`setting-card ${formatMonetaryThousands ? 'is-on' : ''}`}>
-              <strong>Moeda em formato “mil”</strong>
-              <div className="setting-actions">
-                <button
-                  className="help-button"
-                  type="button"
-                  aria-label="Explicar valores monetários"
-                  onMouseDown={(event) => event.stopPropagation()}
-                  onClick={() => toggleHelp('money')}
-                >
-                  ?
-                </button>
-                <button
-                  className="toggle-pill"
-                  type="button"
-                  role="switch"
-                  aria-checked={formatMonetaryThousands}
-                  onClick={() => setFormatMonetaryThousands((current) => !current)}
-                  disabled={isTranscribing}
-                >
-                  <span className="switch-track" aria-hidden="true">
-                    <span className="switch-thumb" />
-                  </span>
-                </button>
-              </div>
-              {openHelp === 'money' && (
-                <div
-                  className="setting-popover"
-                  role="dialog"
-                  aria-label="Ajuda sobre valores monetários"
-                  onMouseDown={(event) => event.stopPropagation()}
-                >
-                  Quando reconhecer dinheiro em guaraníes, o app pode padronizar como “200 mil”. Números comuns de contagem não são tratados como moeda.
-                </div>
-              )}
-            </div>
-
-            <div className="setting-card is-static">
-              <strong>Trava visual: 17 caracteres</strong>
-              <div className="setting-actions">
-                <button
-                  className="help-button"
-                  type="button"
-                  aria-label="Explicar trava visual"
-                  onMouseDown={(event) => event.stopPropagation()}
-                  onClick={() => toggleHelp('visual-limit')}
-                >
-                  ?
-                </button>
-                <span className="static-pill">ativa</span>
-              </div>
-              {openHelp === 'visual-limit' && (
-                <div
-                  className="setting-popover"
-                  role="dialog"
-                  aria-label="Ajuda sobre trava visual"
-                  onMouseDown={(event) => event.stopPropagation()}
-                >
-                  Se uma legenda tiver mais de uma palavra e passar de 17 caracteres contando espaços, o engine separa. Palavra única longa continua inteira.
-                </div>
-              )}
-            </div>
+        <header className="topbar">
+          <div className="topbar-title">
+            <h1>{topbarTitle}</h1>
+            <p>{topbarSubtitle}</p>
           </div>
-
-          <div className="engine-line">
-            <span>{health.message}</span>
-            <button className="ghost" onClick={checkRuntime} disabled={isTranscribing}>Reverificar runtime</button>
-          </div>
-        </article>
-
-        <article className="card result">
-          <div className="result-header">
-            <div>
-              <span className="label">3 · Preview das captions</span>
-              <h2>{transcription.message}</h2>
-            </div>
-            <div className="result-actions">
+          <div className="topbar-actions">
+            {segmentationChanged && (
+              <button className="btn secondary" onClick={regenerateCaptions} disabled={isSegmenting}>
+                {isSegmenting ? 'Gerando legendas…' : 'Regerar legendas'}
+              </button>
+            )}
+            {transcription.status === 'loading' && (
+              <button className="btn secondary" onClick={cancelTranscription} disabled={transcription.cancelling}>
+                {transcription.cancelling ? 'Cancelando…' : 'Cancelar'}
+              </button>
+            )}
+            {filePath && (
               <button
-                className={transcription.status === 'success' ? 'secondary' : undefined}
+                className={`btn ${hasCaptions ? 'secondary' : ''}`}
                 onClick={runTranscription}
-                disabled={!filePath || isTranscribing || runtime.status !== 'ready'}
+                disabled={isTranscribing || isSegmenting || runtime.status !== 'ready'}
               >
                 {isTranscribing
                   ? 'Transcrevendo…'
-                  : transcription.status === 'success'
+                  : hasCaptions
                     ? 'Transcrever novamente'
                     : transcription.status === 'error'
                       ? 'Tentar novamente'
-                      : 'Transcrever agora'}
+                      : 'Transcrever'}
               </button>
-              {transcription.status === 'loading' && (
-                <button
-                  className="secondary cancel-button"
-                  onClick={cancelTranscription}
-                  disabled={transcription.cancelling}
-                >
-                  {transcription.cancelling ? 'Cancelando…' : 'Cancelar'}
-                </button>
-              )}
-              {transcription.status === 'success' && (
-                <button
-                  onClick={exportSrt}
-                  disabled={
-                    exportState.status === 'loading' ||
-                    transcription.captions.length === 0 ||
-                    transcription.captions.some((caption) => !caption.text.trim())
-                  }
-                >
-                  {exportState.status === 'loading' ? 'Exportando…' : 'Exportar SRT'}
-                </button>
-              )}
-            </div>
+            )}
+            {hasCaptions && (
+              <button
+                className="btn"
+                onClick={exportSrt}
+                disabled={
+                  exportState.status === 'loading' ||
+                  isSegmenting ||
+                  transcription.captions.length === 0 ||
+                  transcription.captions.some((caption) => !caption.text.trim())
+                }
+              >
+                {exportState.status === 'loading' ? 'Exportando…' : 'Exportar SRT'}
+              </button>
+            )}
           </div>
+        </header>
 
-          {transcription.status === 'loading' && (
-            <div className="transcription-progress" aria-live="polite">
-              <div className="progress-meta">
-                <strong>{transcription.message}</strong>
-                {transcription.progress !== null && (
-                  <span>{Math.round(transcription.progress * 100)}%</span>
+        <div className="content">
+          <section className="canvas">
+            {!filePath && (
+              <div className={`dropzone ${isDragging ? 'dragging' : ''}`}>
+                <span className="dropzone-icon" aria-hidden="true">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 16V4" /><path d="m7 9 5-5 5 5" /><path d="M5 20h14" />
+                  </svg>
+                </span>
+                <h2>Arraste um áudio ou vídeo</h2>
+                <p>Transcrição local com faster-whisper e legendas prontas para o Premiere. Nada sai do seu computador.</p>
+                <button className="btn" onClick={selectMedia} disabled={isTranscribing}>Selecionar arquivo</button>
+                <small>MP3 · WAV · M4A · FLAC · MP4 · MOV · MKV · WEBM</small>
+                {sourceMessage && <span className="source-error">{sourceMessage}</span>}
+              </div>
+            )}
+
+            {filePath && (
+              <div className="panel file-card">
+                <span className="file-icon" aria-hidden="true">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" />
+                  </svg>
+                </span>
+                <div className="file-meta">
+                  <strong>{selectedName}</strong>
+                  <small>{filePath}</small>
+                  {sourceMessage && <span className="source-error">{sourceMessage}</span>}
+                </div>
+                <button className="btn secondary small" onClick={selectMedia} disabled={isTranscribing}>Trocar arquivo</button>
+              </div>
+            )}
+
+            {filePath && transcription.status === 'idle' && (
+              <div className="panel empty-state">
+                <h2>Pronto para transcrever</h2>
+                <p>{transcription.message}</p>
+                <p>Ajuste modelo, idioma e legendas no painel à direita e clique em <strong>Transcrever</strong>.</p>
+              </div>
+            )}
+
+            {transcription.status === 'loading' && (
+              <div className="panel progress-card" aria-live="polite">
+                <div className="progress-meta">
+                  <strong>{transcription.message}</strong>
+                  {transcription.progress !== null && <span>{Math.round(transcription.progress * 100)}%</span>}
+                </div>
+                <div className={`progress-track ${transcription.progress === null ? 'indeterminate' : ''}`}>
+                  <div
+                    className="progress-fill"
+                    style={transcription.progress === null ? undefined : { width: `${Math.round(transcription.progress * 100)}%` }}
+                  />
+                </div>
+                <small>
+                  {transcription.progress === null
+                    ? 'O carregamento do modelo não possui percentual artificial; o progresso numérico começa com a inferência.'
+                    : 'Percentual calculado pela posição temporal já processada no áudio.'}
+                </small>
+              </div>
+            )}
+
+            {transcription.status === 'error' && (
+              <div className="notice error" role="alert">
+                <strong>A transcrição não foi concluída.</strong>
+                <small>{transcription.message}</small>
+                <small>O arquivo e todas as configurações foram preservados. Use “Tentar novamente” ou reverifique o runtime.</small>
+              </div>
+            )}
+
+            {transcription.status === 'success' && (
+              <>
+                <div className={`notice ${exportState.status === 'success' ? 'success' : exportState.status === 'error' ? 'error' : ''}`}>
+                  <strong>{exportState.message}</strong>
+                  {exportState.status === 'success' && <small>{exportState.path}</small>}
+                </div>
+
+                {segmentationChanged && segmentState.status !== 'error' && (
+                  <div className="notice accent" aria-live="polite">
+                    <strong>
+                      {isSegmenting
+                        ? segmentState.message
+                        : 'As opções de legenda mudaram. Use “Regerar legendas” para aplicá-las sem transcrever de novo.'}
+                    </strong>
+                    {transcription.captionsEdited && !isSegmenting && (
+                      <small>Regerar descarta as edições manuais feitas abaixo; o app pede confirmação.</small>
+                    )}
+                  </div>
+                )}
+
+                {segmentState.status === 'error' && segmentationChanged && (
+                  <div className="notice error" role="alert">
+                    <strong>As legendas não foram regeradas.</strong>
+                    <small>{segmentState.message}</small>
+                  </div>
+                )}
+
+                <div className="editor-heading">
+                  <h2>Legendas · {transcription.captions.length}</h2>
+                  <small>Enter divide · vazio + Backspace remove · clique no texto para editar</small>
+                </div>
+
+                <div className="panel caption-list">
+                  {transcription.captions.map((caption, index) => {
+                    const count = captionCharacterCount(caption.text)
+                    const over = count > 17 && /\s/.test(caption.text.trim())
+                    return (
+                      <div className="caption-row" key={`${caption.start}-${index}`}>
+                        <span className="caption-time">{formatTime(caption.start)} → {formatTime(caption.end)}</span>
+                        <textarea
+                          ref={(element) => {
+                            captionInputRefs.current[index] = element
+                            fitTextarea(element)
+                          }}
+                          value={caption.text}
+                          rows={1}
+                          spellCheck={false}
+                          aria-label={`Editar caption ${index + 1}`}
+                          onChange={(event) => {
+                            fitTextarea(event.target)
+                            updateCaptionText(index, event.target.value)
+                          }}
+                          onKeyDown={(event) => handleCaptionKeyDown(index, event)}
+                        />
+                        <div className="caption-side">
+                          <div className="caption-actions">
+                            <button
+                              className="btn ghost small"
+                              type="button"
+                              title="Dividir no meio do texto"
+                              onClick={() => splitCaptionAt(index, Math.floor(caption.text.length / 2))}
+                            >
+                              Dividir
+                            </button>
+                            <button
+                              className="btn ghost small danger"
+                              type="button"
+                              title="Excluir este segmento"
+                              onClick={() => removeCaption(index)}
+                            >
+                              Excluir
+                            </button>
+                          </div>
+                          <span className={`char-count ${over ? 'over' : ''}`} title="Caracteres nesta legenda">{count}</span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                <details className="panel raw-words">
+                  <summary>Ver amostra de palavras e timestamps brutos</summary>
+                  <div className="word-preview">
+                    {transcription.words.slice(0, 24).map((word, index) => (
+                      <span className="word-chip" key={`${word.start}-${index}`}>
+                        <strong>{word.text}</strong>
+                        <small>{word.start.toFixed(2)} → {word.end.toFixed(2)}</small>
+                      </span>
+                    ))}
+                  </div>
+                </details>
+              </>
+            )}
+          </section>
+
+          <aside className="inspector" aria-label="Configurações">
+            <section className="inspector-section">
+              <h3>Preset</h3>
+              <label className="field">
+                <select value={activePresetId} onChange={(event) => applyPreset(event.target.value)} disabled={isTranscribing} aria-label="Preset">
+                  <option value="custom">Configuração personalizada</option>
+                  <optgroup label="Padrões">
+                    {BUILTIN_PRESETS.map((preset) => (
+                      <option value={preset.id} key={preset.id}>{preset.name}</option>
+                    ))}
+                  </optgroup>
+                  {customPresets.length > 0 && (
+                    <optgroup label="Meus presets">
+                      {customPresets.map((preset) => (
+                        <option value={preset.id} key={preset.id}>{preset.name}</option>
+                      ))}
+                    </optgroup>
+                  )}
+                </select>
+              </label>
+              <div className="preset-actions">
+                <button className="btn ghost small" onClick={saveCurrentPreset} disabled={isTranscribing}>Salvar atual</button>
+                {activeCustomPreset && (
+                  <button className="btn ghost small danger" onClick={deleteActivePreset} disabled={isTranscribing}>Excluir preset</button>
                 )}
               </div>
-              <div className={`progress-track ${transcription.progress === null ? 'indeterminate' : ''}`}>
-                <div
-                  className="progress-fill"
-                  style={transcription.progress === null
-                    ? undefined
-                    : { width: `${Math.round(transcription.progress * 100)}%` }}
-                />
-              </div>
-              <small>
-                {transcription.progress === null
-                  ? 'O carregamento do modelo não possui percentual artificial; o progresso numérico começa com a inferência.'
-                  : 'Percentual calculado pela posição temporal já processada no áudio.'}
-              </small>
-            </div>
-          )}
+              {presetMessage && <small className="preset-message">{presetMessage}</small>}
+            </section>
 
-          {transcription.status === 'error' && (
-            <div className="transcription-error" role="alert">
-              <strong>A transcrição não foi concluída.</strong>
-              <span>{transcription.message}</span>
-              <small>O arquivo e todas as configurações foram preservados. Use “Tentar novamente” ou reverifique o runtime.</small>
-            </div>
-          )}
+            <section className="inspector-section">
+              <h3>Transcrição</h3>
+              <label className="field">
+                Modelo Whisper
+                <select value={model} onChange={(event) => setModel(event.target.value)} disabled={isTranscribing}>
+                  <option value="large-v3">Large v3 · precisão</option>
+                  <option value="medium">Medium · equilíbrio</option>
+                  <option value="small">Small · mais rápido</option>
+                </select>
+              </label>
+              <label className="field">
+                Idioma
+                <select value={language} onChange={(event) => setLanguage(event.target.value)} disabled={isTranscribing}>
+                  <option value="es">Español / ES-PY</option>
+                  <option value="pt">Português</option>
+                  <option value="en">English</option>
+                  <option value="auto">Detectar</option>
+                </select>
+              </label>
+            </section>
 
-          {transcription.status === 'success' && (
-            <>
-              <div className={`export-status ${exportState.status}`}>
-                <strong>{exportState.message}</strong>
-                {exportState.status === 'success' && <small>{exportState.path}</small>}
-              </div>
-
-              <div className="preview-heading">
-                <strong>Todas as captions</strong>
-                <small>Enter divide · vazio + Backspace remove · esquerda mostra caracteres</small>
-              </div>
-              <div className="caption-preview">
-                {transcription.captions.map((caption, index) => (
-                  <div className="caption-row" key={`${caption.start}-${index}`}>
-                    <span className="caption-character-count" title="Caracteres nesta legenda">
-                      {captionCharacterCount(caption.text)}
-                    </span>
-                    <textarea
-                      ref={(element) => { captionInputRefs.current[index] = element }}
-                      value={caption.text}
-                      rows={1}
-                      spellCheck={false}
-                      aria-label={`Editar caption ${index + 1}`}
-                      onChange={(event) => updateCaptionText(index, event.target.value)}
-                      onKeyDown={(event) => handleCaptionKeyDown(index, event)}
-                    />
-                    <div className="caption-tools">
-                      <small>{caption.start.toFixed(2)} → {caption.end.toFixed(2)}</small>
-                      <div className="caption-tool-buttons">
-                        <button
-                          className="mini-button"
-                          type="button"
-                          title="Dividir no meio do texto"
-                          onClick={() => splitCaptionAt(index, Math.floor(caption.text.length / 2))}
-                        >
-                          Dividir
-                        </button>
-                        <button
-                          className="mini-button danger"
-                          type="button"
-                          title="Excluir este segmento"
-                          onClick={() => removeCaption(index)}
-                        >
-                          Excluir
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <details className="raw-words">
-                <summary>Ver amostra de palavras e timestamps brutos</summary>
-                <div className="word-preview">
-                  {transcription.words.map((word, index) => (
-                    <span className="word-chip" key={`${word.start}-${index}`}>
-                      <strong>{word.text}</strong>
-                      <small>{word.start.toFixed(2)} → {word.end.toFixed(2)}</small>
-                    </span>
+            <section className="inspector-section">
+              <h3>Legendas</h3>
+              <div className="field">
+                Palavras por legenda
+                <div className="segmented" role="group" aria-label="Palavras por legenda">
+                  {[1, 2, 3, 4].map((value) => (
+                    <button
+                      type="button"
+                      key={value}
+                      aria-pressed={targetWords === value}
+                      onClick={() => setTargetWords(value)}
+                      disabled={isTranscribing}
+                    >
+                      {value}
+                    </button>
                   ))}
                 </div>
-              </details>
-            </>
-          )}
-        </article>
-      </section>
-    </main>
+                <span className="segmented-hint">
+                  {targetWords === 1 ? 'Muito dinâmica' : targetWords === 2 ? 'Padrão' : targetWords === 3 ? 'Mais texto por tela' : 'Leitura longa'}
+                </span>
+              </div>
+
+              <div className="panel setting-list">
+                <div className="setting-row">
+                  <span>Ignorar preposições</span>
+                  {renderHelp('prepositions', 'Explicar preposições', 'Preposições como “a”, “en”, “de” e “para” podem acompanhar a palavra vizinha sem contar como uma palavra extra. A pausa real e o limite de 17 caracteres continuam mandando.')}
+                  {renderToggle(ignorePrepositions, () => setIgnorePrepositions((current) => !current), 'Ignorar preposições')}
+                </div>
+                <div className="setting-row">
+                  <span>Manter vírgulas e pontos</span>
+                  {renderHelp('punctuation', 'Explicar pontuação', 'Controla só vírgulas e pontos nas bordas. Interrogação, exclamação e sinais espanhóis como “¿” e “¡” são sempre preservados.')}
+                  {renderToggle(preserveCommasPeriods, () => setPreserveCommasPeriods((current) => !current), 'Manter vírgulas e pontos')}
+                </div>
+                <div className="setting-row">
+                  <span>Moeda em formato “mil”</span>
+                  {renderHelp('money', 'Explicar valores monetários', 'Quando reconhecer dinheiro em guaraníes, o app pode padronizar como “200 mil”. Números comuns de contagem não são tratados como moeda.')}
+                  {renderToggle(formatMonetaryThousands, () => setFormatMonetaryThousands((current) => !current), 'Moeda em formato mil')}
+                </div>
+                <div className="setting-row">
+                  <span>Trava visual · 17 caracteres</span>
+                  {renderHelp('visual-limit', 'Explicar trava visual', 'Se uma legenda tiver mais de uma palavra e passar de 17 caracteres contando espaços, o engine separa. Palavra única longa continua inteira.')}
+                  <span className="static-pill">ativa</span>
+                </div>
+              </div>
+            </section>
+          </aside>
+        </div>
+      </main>
+    </div>
   )
 }
+
 
 createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
