@@ -117,6 +117,23 @@ Entregas:
 - histórico somente da sessão, se necessário;
 - fluxo claro selecionar → transcrever → revisar → exportar.
 
+### Proposta D-017 — fluxo em 3 etapas 💡
+
+**Status:** proposta registrada em `docs/DECISIONS.md` (D-017), **pendente de aprovação do usuário**. Não implementar enquanto D-017 estiver como proposta.
+
+Fluxo: **Transcrição → Revisão do texto → Legendas (editor + player) → Exportar SRT**.
+
+Entregas pequenas, uma por PR, nesta ordem:
+
+1. **Engine `segment`:** comando CLI que recebe `WordToken[]` + opções e devolve `CaptionCue[]`. Teste de contrato: mesmas palavras e opções produzem as mesmas captions que `transcribe`; texto revisado é respeitado; timestamps preservados. Sem mudança de UI.
+2. **UI separa transcrever de gerar legendas:** a UI guarda as `words` da transcrição e chama `segment`; trocar opções de segmentação regera legendas sem retranscrever. Visual quase igual ao atual.
+3. **Navegação em etapas:** indicador de etapa (1 Transcrição · 2 Revisão · 3 Legendas), voltar/avançar e confirmação antes de descartar edições de cues ao regerar.
+4. **Tela de revisão do texto:** texto corrido editável por palavra (substituir/excluir), destaque de palavras com `probability` baixa e tempos intocados.
+5. **Player no editor de legendas:** vídeo/áudio local sincronizado; clicar na legenda posiciona a mídia e a legenda corrente fica destacada.
+6. **Opcionais, após validação:** verificação ortográfica local, dividir/juntar palavras com redistribuição de tempo no engine, waveform/timeline.
+
+Critério de saída da proposta: com um vídeo ES-PY real, o usuário corrige erros no texto antes de segmentar, gera legendas, ajusta no editor com o player e exporta um SRT que importa no Premiere, sem retranscrever ao mudar opções.
+
 Critério de saída: usuário consegue concluir o fluxo principal sem terminal após o ambiente estar instalado.
 
 ## Fase 6 — UX/UI ⬜
