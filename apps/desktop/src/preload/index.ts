@@ -25,6 +25,15 @@ contextBridge.exposeInMainWorld('srtStudio', {
     ipcRenderer.on('engine:transcription-progress', listener)
     return () => ipcRenderer.removeListener('engine:transcription-progress', listener)
   },
+  segment: (input: {
+    words: Array<{ text: string; start: number; end: number; probability?: number | null }>
+    segmentation: {
+      target_words: number
+      ignore_prepositions: boolean
+      preserve_commas_periods: boolean
+      monetary_thousands: boolean
+    }
+  }) => ipcRenderer.invoke('engine:segment', input),
   exportSrt: (input: {
     sourceFilePath: string
     captions: Array<{ text: string; start: number; end: number }>

@@ -363,6 +363,28 @@ app.whenReady().then(() => {
   })
 
   ipcMain.handle(
+    'engine:segment',
+    async (_event, input: {
+      words: Array<{ text: string; start: number; end: number; probability?: number | null }>
+      segmentation: {
+        target_words: number
+        ignore_prepositions: boolean
+        preserve_commas_periods: boolean
+        monetary_thousands: boolean
+      }
+    }) => {
+      if (!Array.isArray(input.words) || input.words.length === 0) {
+        throw new Error('É preciso transcrever antes de gerar legendas')
+      }
+
+      return runEngineJson(['segment'], false, {
+        words: input.words,
+        segmentation: input.segmentation
+      })
+    }
+  )
+
+  ipcMain.handle(
     'srt:export',
     async (_event, input: {
       sourceFilePath: string

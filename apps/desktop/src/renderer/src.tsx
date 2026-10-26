@@ -21,6 +21,15 @@ type RuntimeState =
 
 type Caption = { text: string; start: number; end: number }
 
+type Word = { text: string; start: number; end: number; probability?: number | null }
+
+type SegmentationSettings = {
+  target_words: number
+  ignore_prepositions: boolean
+  preserve_commas_periods: boolean
+  monetary_thousands: boolean
+}
+
 type TranscriptionState =
   | { status: 'idle'; message: string }
   | {
@@ -30,7 +39,19 @@ type TranscriptionState =
       progress: number | null
       cancelling: boolean
     }
-  | { status: 'success'; message: string; words: Caption[]; captions: Caption[] }
+  | {
+      status: 'success'
+      message: string
+      summary: string
+      words: Word[]
+      captions: Caption[]
+      segmentation: SegmentationSettings
+      captionsEdited: boolean
+    }
+  | { status: 'error'; message: string }
+
+type SegmentState =
+  | { status: 'idle' | 'loading'; message: string }
   | { status: 'error'; message: string }
 
 type ExportState =
@@ -67,6 +88,17 @@ function progressMessage(stage: string, progress: number | null): string {
   if (stage === 'finalizing') return 'Segmentando e validando captions…'
   if (stage === 'completed') return 'Finalizando resultado…'
   return 'Transcrevendo…'
+}
+
+function resultMessage(captionCount: number, wordCount: number, summary: string): string {
+  return `${captionCount} captions · ${wordCount} palavras · ${summary}`
+}
+
+function sameSegmentation(left: SegmentationSettings, right: SegmentationSettings): boolean {
+  return left.target_words === right.target_words &&
+    left.ignore_prepositions === right.ignore_prepositions &&
+    left.preserve_commas_periods === right.preserve_commas_periods &&
+    left.monetary_thousands === right.monetary_thousands
 }
 
 function captionCharacterCount(text: string): number {
@@ -156,11 +188,21 @@ function App() {
     status: 'idle',
     message: 'O SRT ficará disponível depois da transcrição.'
   })
+  const [segmentState, setSegmentState] = useState<SegmentState>({ status: 'idle', message: '' })
   const [openHelp, setOpenHelp] = useState<HelpTopic | null>(null)
   const captionInputRefs = useRef<Array<HTMLTextAreaElement | null>>([])
 
   const selectedName = useMemo(() => fileName(filePath), [filePath])
   const isTranscribing = transcription.status === 'loading'
+  const isSegmenting = segmentState.status === 'loading'
+  const currentSegmentation = useMemo<SegmentationSettings>(() => ({
+    target_words: targetWords,
+    ignore_prepositions: ignorePrepositions,
+    preserve_commas_periods: preserveCommasPeriods,
+    monetary_thousands: formatMonetaryThousands
+  }), [targetWords, ignorePrepositions, preserveCommasPeriods, formatMonetaryThousands])
+  const segmentationChanged = transcription.status === 'success' &&
+    !sameSegmentation(transcription.segmentation, currentSegmentation)
   const allPresets = useMemo(() => [...BUILTIN_PRESETS, ...customPresets], [customPresets])
   const currentSettings = useMemo<PresetSettings>(() => ({
     model,
@@ -384,11 +426,16 @@ function App() {
       }
 
       const fallbackLabel = result.runtime_warning ? ' · fallback CUDA → CPU' : ''
+      const summary = `${result.language} · ${result.device.toUpperCase()}${fallbackLabel} · ${result.duration.toFixed(1)}s`
+      setSegmentState({ status: 'idle', message: '' })
       setTranscription({
         status: 'success',
-        message: `${result.captions.length} captions · ${result.words.length} palavras · ${result.language} · ${result.device.toUpperCase()}${fallbackLabel} · ${result.duration.toFixed(1)}s`,
-        words: result.words.slice(0, 24),
-        captions: result.captions
+        message: resultMessage(result.captions.length, result.words.length, summary),
+        summary,
+        words: result.words,
+        captions: result.captions,
+        segmentation: result.segmentation,
+        captionsEdited: false
       })
       setExportState({
         status: 'idle',
@@ -398,6 +445,43 @@ function App() {
       setTranscription({
         status: 'error',
         message: error instanceof Error ? error.message : 'Falha ao transcrever'
+      })
+    }
+  }
+
+  async function regenerateCaptions() {
+    if (transcription.status !== 'success' || isSegmenting) return
+    if (
+      transcription.captionsEdited &&
+      !window.confirm('Regerar as legendas descarta as edições manuais feitas no preview. Continuar?')
+    ) {
+      return
+    }
+
+    const { words, summary } = transcription
+    const segmentation = currentSegmentation
+    setSegmentState({ status: 'loading', message: 'Gerando legendas com as opções atuais…' })
+    try {
+      const result = await window.srtStudio.segment({ words, segmentation })
+      setTranscription((current) => {
+        if (current.status !== 'success' || current.words !== words) return current
+        return {
+          ...current,
+          message: resultMessage(result.captions.length, words.length, summary),
+          captions: result.captions,
+          segmentation: result.segmentation,
+          captionsEdited: false
+        }
+      })
+      setSegmentState({ status: 'idle', message: '' })
+      setExportState({
+        status: 'idle',
+        message: 'Legendas regeradas sem retranscrever. Escolha onde salvar o SRT.'
+      })
+    } catch (error) {
+      setSegmentState({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Falha ao gerar legendas'
       })
     }
   }
@@ -458,7 +542,7 @@ function App() {
     setTranscription((current) => {
       if (current.status !== 'success') return current
       const captions = updater(current.captions)
-      return { ...current, captions }
+      return { ...current, captions, captionsEdited: true }
     })
     setExportState({
       status: 'idle',
@@ -812,10 +896,15 @@ function App() {
               <h2>{transcription.message}</h2>
             </div>
             <div className="result-actions">
+              {segmentationChanged && (
+                <button onClick={regenerateCaptions} disabled={isSegmenting}>
+                  {isSegmenting ? 'Gerando legendas…' : 'Regerar legendas'}
+                </button>
+              )}
               <button
                 className={transcription.status === 'success' ? 'secondary' : undefined}
                 onClick={runTranscription}
-                disabled={!filePath || isTranscribing || runtime.status !== 'ready'}
+                disabled={!filePath || isTranscribing || isSegmenting || runtime.status !== 'ready'}
               >
                 {isTranscribing
                   ? 'Transcrevendo…'
@@ -839,6 +928,7 @@ function App() {
                   onClick={exportSrt}
                   disabled={
                     exportState.status === 'loading' ||
+                    isSegmenting ||
                     transcription.captions.length === 0 ||
                     transcription.captions.some((caption) => !caption.text.trim())
                   }
@@ -888,6 +978,26 @@ function App() {
                 {exportState.status === 'success' && <small>{exportState.path}</small>}
               </div>
 
+              {segmentationChanged && segmentState.status !== 'error' && (
+                <div className="export-status idle" aria-live="polite">
+                  <strong>
+                    {isSegmenting
+                      ? segmentState.message
+                      : 'As opções de legenda mudaram. Use “Regerar legendas” para aplicá-las sem transcrever de novo.'}
+                  </strong>
+                  {transcription.captionsEdited && !isSegmenting && (
+                    <small>Regerar descarta as edições manuais feitas abaixo; o app pede confirmação.</small>
+                  )}
+                </div>
+              )}
+
+              {segmentState.status === 'error' && segmentationChanged && (
+                <div className="export-status error" role="alert">
+                  <strong>As legendas não foram regeradas.</strong>
+                  <small>{segmentState.message}</small>
+                </div>
+              )}
+
               <div className="preview-heading">
                 <strong>Todas as captions</strong>
                 <small>Enter divide · vazio + Backspace remove · esquerda mostra caracteres</small>
@@ -934,7 +1044,7 @@ function App() {
               <details className="raw-words">
                 <summary>Ver amostra de palavras e timestamps brutos</summary>
                 <div className="word-preview">
-                  {transcription.words.map((word, index) => (
+                  {transcription.words.slice(0, 24).map((word, index) => (
                     <span className="word-chip" key={`${word.start}-${index}`}>
                       <strong>{word.text}</strong>
                       <small>{word.start.toFixed(2)} → {word.end.toFixed(2)}</small>
