@@ -166,6 +166,12 @@ function formatTime(seconds: number): string {
   return `${String(minutes).padStart(2, '0')}:${rest.toFixed(2).padStart(5, '0')}`
 }
 
+function fitTextarea(element: HTMLTextAreaElement | null): void {
+  if (!element) return
+  element.style.height = 'auto'
+  element.style.height = `${element.scrollHeight}px`
+}
+
 function roundTime(value: number): number {
   return Math.round(value * 1000) / 1000
 }
@@ -875,12 +881,10 @@ function App() {
 
             {transcription.status === 'success' && (
               <>
-                {exportState.status !== 'idle' && (
-                  <div className={`notice ${exportState.status === 'success' ? 'success' : exportState.status === 'error' ? 'error' : ''}`}>
-                    <strong>{exportState.message}</strong>
-                    {exportState.status === 'success' && <small>{exportState.path}</small>}
-                  </div>
-                )}
+                <div className={`notice ${exportState.status === 'success' ? 'success' : exportState.status === 'error' ? 'error' : ''}`}>
+                  <strong>{exportState.message}</strong>
+                  {exportState.status === 'success' && <small>{exportState.path}</small>}
+                </div>
 
                 {segmentationChanged && segmentState.status !== 'error' && (
                   <div className="notice accent" aria-live="polite">
@@ -904,7 +908,7 @@ function App() {
 
                 <div className="editor-heading">
                   <h2>Legendas · {transcription.captions.length}</h2>
-                  <small>Enter divide · vazio + Backspace remove · {exportState.status === 'idle' ? exportState.message : 'edite à vontade antes de exportar'}</small>
+                  <small>Enter divide · vazio + Backspace remove · clique no texto para editar</small>
                 </div>
 
                 <div className="panel caption-list">
@@ -915,12 +919,18 @@ function App() {
                       <div className="caption-row" key={`${caption.start}-${index}`}>
                         <span className="caption-time">{formatTime(caption.start)} → {formatTime(caption.end)}</span>
                         <textarea
-                          ref={(element) => { captionInputRefs.current[index] = element }}
+                          ref={(element) => {
+                            captionInputRefs.current[index] = element
+                            fitTextarea(element)
+                          }}
                           value={caption.text}
                           rows={1}
                           spellCheck={false}
                           aria-label={`Editar caption ${index + 1}`}
-                          onChange={(event) => updateCaptionText(index, event.target.value)}
+                          onChange={(event) => {
+                            fitTextarea(event.target)
+                            updateCaptionText(index, event.target.value)
+                          }}
                           onKeyDown={(event) => handleCaptionKeyDown(index, event)}
                         />
                         <div className="caption-side">
