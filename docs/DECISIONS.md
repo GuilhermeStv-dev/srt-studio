@@ -135,3 +135,43 @@ A primeira versão usava aproximadamente 12 caracteres por caption como preferê
 **Como:** mesmo Electron e mesmo engine Python; o engine é empacotado com PyInstaller via `scripts/build-engine.sh`. No Mac não há CUDA: o runtime cai automaticamente para CPU `int8`.
 
 **Limites:** app assinado apenas ad-hoc (sem Apple Developer ID/notarização). Windows continua sendo a plataforma principal de validação.
+
+## D-017 — Fluxo em 3 etapas (transcrição → revisão do texto → editor de legendas)
+
+**Status:** aprovada pelo usuário em 26/10/2026, com as respostas registradas em **Respostas do usuário** ao final desta decisão.
+
+**Contexto:** hoje o SRTX funciona em uma tela única. O comando `transcribe` transcreve **e** segmenta na mesma chamada e devolve `words` + `captions`. Erros de reconhecimento só podem ser corrigidos depois da segmentação, legenda por legenda, no editor de D-014. Mudar uma opção de segmentação exige transcrever de novo. O fluxo desejado é inspirado em editores modernos de transcrição/legenda (ex.: ElevenLabs): primeiro o texto, depois as legendas.
+
+**Proposta de fluxo:**
+
+```
+1. Transcrição      mídia → WordToken[] (texto corrido com tempos por palavra)
+2. Revisão do texto o usuário corrige o texto das palavras; os tempos não mudam
+3. Legendas         engine segmenta o texto JÁ REVISADO → CaptionCue[]
+                    → editor de legendas (D-014) + player sincronizado → Exportar SRT
+```
+
+**Engine (D-002 continua valendo):**
+- novo comando CLI `segment`: recebe `WordToken[]` revisados + opções de segmentação via stdin e devolve `CaptionCue[]`, aplicando a mesma cadeia de hoje (reparo de números fragmentados, normalização monetária, segmentação e validação);
+- a normalização monetária e todas as regras de D-011/D-012/D-013 rodam **sobre o texto revisado**;
+- `transcribe` continua devolvendo `captions` durante a transição, para manter compatibilidade e reversibilidade; a remoção dessa saída exige nova decisão;
+- para as mesmas palavras e opções, `segment` precisa produzir exatamente as mesmas captions que `transcribe` produz hoje (teste de contrato).
+
+**Regras da revisão (etapa 2):**
+- MVP: só **substituir o texto de uma palavra** (1 palavra → 1 palavra) e **excluir palavra**. `start`/`end` de cada `WordToken` nunca são alterados pela UI;
+- dividir uma palavra em várias ou juntar palavras exige redistribuir tempo; isso é regra de timing e, se aprovado, será implementado no engine, não no React;
+- palavras com `probability` baixa (já devolvida pelo faster-whisper) são destacadas para revisão. Sugestões nunca são aplicadas automaticamente;
+- verificação ortográfica por dicionário é opcional e posterior; precisa ser local, ou com dicionário baixado uma única vez, compatível com D-003.
+
+**Regras do editor (etapa 3):**
+- continua sendo o editor de D-014 (editar, dividir, excluir cues), acrescido de player de mídia: clicar numa legenda posiciona o vídeo, e a legenda corrente fica destacada durante a reprodução;
+- regerar legendas, seja ao voltar para a etapa 2 ou ao trocar opções, **descarta edições manuais de cues** e exige confirmação explícita;
+- exportação continua obedecendo D-007 e D-008; a semântica do SRT não muda.
+
+**Fora desta proposta:** identidade visual copiada do ElevenLabs (vale só o fluxo), persistência de projetos entre sessões, waveform/timeline arrastável (entrega posterior opcional), identificação de falantes.
+
+**Respostas do usuário (aprovação de 26/10/2026):**
+1. Fluxo e ordem das entregas da Fase 5: **aprovados**.
+2. Dividir/juntar palavras na revisão: **fora do MVP**. A revisão só substitui (1 → 1) ou exclui palavras.
+3. Verificação ortográfica por dicionário: **fora do MVP**. Basta o destaque de palavras com `probability` baixa.
+4. Opções de segmentação: ficam **na etapa 3 (Legendas)**, para regerar sem retranscrever.
