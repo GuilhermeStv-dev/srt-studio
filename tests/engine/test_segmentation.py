@@ -51,15 +51,15 @@ class SegmentationTests(unittest.TestCase):
     def test_four_words_per_caption_without_special_cadence(self) -> None:
         result = segment_words(
             words(
-                ("uno", 0.00, 0.10),
+                ("un", 0.00, 0.10),
                 ("dos", 0.11, 0.20),
                 ("tres", 0.21, 0.30),
-                ("cuatro", 0.31, 0.40),
+                ("va", 0.31, 0.40),
                 ("cinco", 0.41, 0.50),
             ),
             SegmentationConfig(target_words=4, ignore_prepositions=False),
         )
-        self.assertEqual([cue.text for cue in result], ["uno dos tres cuatro", "cinco"])
+        self.assertEqual([cue.text for cue in result], ["un dos tres va", "cinco"])
 
     def test_preposition_can_be_ignored_in_count(self) -> None:
         result = segment_words(
@@ -71,6 +71,16 @@ class SegmentationTests(unittest.TestCase):
             SegmentationConfig(target_words=1, ignore_prepositions=True),
         )
         self.assertEqual([cue.text for cue in result], ["para vos", "ahora"])
+
+    def test_hard_caption_width_overrides_preposition_attachment(self) -> None:
+        result = segment_words(
+            words(
+                ("extraordinario", 0.00, 0.34),
+                ("para", 0.35, 0.55),
+            ),
+            SegmentationConfig(target_words=1, ignore_prepositions=True),
+        )
+        self.assertEqual([cue.text for cue in result], ["extraordinario", "para"])
 
     def test_preposition_counts_when_option_is_disabled(self) -> None:
         result = segment_words(
@@ -126,6 +136,33 @@ class SegmentationTests(unittest.TestCase):
             SegmentationConfig(target_words=1, ignore_prepositions=True),
         )
         self.assertEqual([cue.text for cue in result], ["acá ya", "encontramos"])
+
+    def test_one_word_target_can_keep_short_deictic_presentation_pair(self) -> None:
+        result = segment_words(
+            words(
+                ("Acá", 0.00, 0.36),
+                ("tenemos", 0.36, 0.74),
+                ("a", 0.75, 0.86),
+                ("otro", 0.86, 1.12),
+            ),
+            SegmentationConfig(target_words=1, ignore_prepositions=True),
+        )
+        self.assertEqual([cue.text for cue in result], ["Acá tenemos", "a otro"])
+
+    def test_countdown_digits_are_always_isolated(self) -> None:
+        result = segment_words(
+            words(
+                ("Comenzamos", 0.00, 0.44),
+                ("en", 0.44, 0.56),
+                ("5", 0.56, 0.74),
+                ("4", 0.86, 0.96),
+                ("3", 1.06, 1.16),
+                ("2", 1.26, 1.36),
+                ("1", 1.46, 1.56),
+            ),
+            SegmentationConfig(target_words=2, ignore_prepositions=True),
+        )
+        self.assertEqual([cue.text for cue in result], ["Comenzamos en", "5", "4", "3", "2", "1"])
 
     def test_hard_pause_breaks_even_a_cohesive_pair(self) -> None:
         result = segment_words(
@@ -265,6 +302,18 @@ class SegmentationTests(unittest.TestCase):
             self.assertGreater(cue.end, cue.start)
         for left, right in zip(result, result[1:]):
             self.assertLessEqual(left.end, right.start)
+
+    def test_repairs_collapsed_caption_duration_after_overlap_adjustment(self) -> None:
+        result = segment_words(
+            words(
+                ("uno", 0.00, 1.00),
+                ("dos", 0.90, 0.95),
+            ),
+            SegmentationConfig(target_words=1, ignore_prepositions=False),
+        )
+        self.assertEqual([cue.text for cue in result], ["uno", "dos"])
+        self.assertEqual(result[1].start, 1.0)
+        self.assertEqual(result[1].end, 1.05)
 
 
 if __name__ == "__main__":

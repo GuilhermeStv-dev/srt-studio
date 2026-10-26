@@ -1,15 +1,16 @@
 # Estado atual
 
-Última atualização: 2026-08-17
+Última atualização: 2026-08-28
 
 ## Fase
 
 **2. Motor de transcrição — concluído funcionalmente**  
-**3. Segmentação ES-PY — segmentação inteligente em validação real**  
+**3. Segmentação ES-PY — concluída funcionalmente; calibração contínua por regressão**  
 **4. SRT Premiere-safe — exportação validada no Windows, aguardando importação no Premiere**  
 **5. Desktop funcional — implementação principal concluída, validações reais pendentes**  
-**6. UX/UI — em refinamento**  
-**7. Calibração e regressão — iniciada**
+**6. UX/UI — refinamento final**  
+**7. Calibração e regressão — infraestrutura ativa**  
+**8. Distribuição Windows — em andamento**
 
 ## Fundação concluída
 
@@ -31,6 +32,7 @@
 - [x] UTF-8 preservando `¿`, `¡` e acentos
 - [x] progresso real durante inferência
 - [x] cancelamento do subprocesso ativo
+- [x] reparo de timestamps colapsados por arredondamento, incluindo caso `¿Tenés` com duração zero
 - [ ] concluir CUDA/cuDNN para inferência GPU na RTX
 
 ## Segmentação ES-PY — D-012
@@ -46,8 +48,13 @@
 - [x] opção controla somente vírgulas e pontos
 - [x] valores monetários reconhecidos são sempre isolados
 - [x] normalização opcional `N mil`
+- [x] trava visual universal de 17 caracteres para captions com mais de uma palavra física
 - [x] cues positivos, sem overlap e sem regressão
-- [ ] continuar calibrando com novos trechos reais ES-PY
+- [x] preset `ES-PY · Dinâmico` validado pelo usuário como adequado ao workflow real
+- [x] coesão curta calibrada para `acá tenemos` quando falado colado
+- [x] dígitos simples de contagem/chamada isolados em captions próprias
+
+A Fase 3 está funcionalmente concluída. Cortes ruins reais como `CONFIANZUDO TAMBIÉN`, `Acá` / `tenemos` e contagens `5 4 3 2 1` viraram regressões.
 
 ## Calibração e regressão
 
@@ -57,7 +64,7 @@
 - [x] pausa forte vencendo coesão como fixture
 - [x] isolamento monetário como fixture
 - [x] fluxo documentado em `docs/CALIBRATION.md`
-- [ ] ampliar corpus com fala rápida, pausas variadas, perguntas, moeda e novos cortes editoriais reais
+- [ ] ampliar corpus somente quando surgirem novos casos reais relevantes
 - [ ] adicionar métricas de tempo/hardware em etapa posterior
 
 Cada novo corte considerado ruim deve virar uma fixture mínima antes de alterar pesos ou heurísticas. Não commitar mídia de cliente; usar apenas os `WordToken`s/timestamps necessários.
@@ -67,6 +74,7 @@ Cada novo corte considerado ruim deve virar uma fixture mínima antes de alterar
 - [x] renderer e validação final
 - [x] UTF-8 sem BOM
 - [x] CRLF
+- [x] stdin/stdout/stderr do CLI forçados em UTF-8
 - [x] exportação pela interface
 - [x] `Save As`
 - [x] confirmação explícita de sobrescrita
@@ -91,12 +99,45 @@ Cada novo corte considerado ruim deve virar uma fixture mínima antes de alterar
 - [x] detalhes de runtime/engine ocultos quando saudáveis
 - [x] WordTokens/timestamps brutos removidos da experiência normal
 - [x] explicações técnicas de progresso removidas da experiência normal
+- [x] checkboxes de opções trocados por toggle buttons acessíveis
+- [x] progresso percentual da transcrição refletido na barra de tarefas do Windows
+- [x] cards de opções compactos com explicação sob demanda via `?`
+- [x] toggles revisados sem estado verde de seleção e com ajuda em popover flutuante
+- [x] preview de captions editável antes da exportação
+- [x] coluna lateral do preview mostra caracteres da caption em vez de índice
 - [ ] remover os últimos sinais de build/dev da versão final
-- [ ] revisar estados vazios, erro e sucesso antes da distribuição
+- [ ] revisar estados vazios, erro e sucesso antes da distribuição pública
+
+## Distribuição Windows
+
+- [x] estratégia documentada em `docs/DISTRIBUTION.md`
+- [x] engine Python standalone via PyInstaller `onedir`
+- [x] build standalone validado em CI `windows-latest`
+- [x] health-check executado no `srt-studio-engine.exe` gerado pela CI
+- [x] Electron usa engine standalone quando `app.isPackaged`
+- [x] configuração Electron Forge + Squirrel criada
+- [x] comando `npm run make:win`
+- [x] CI preparada para gerar e publicar artefato do instalador
+- [x] janela/taskbar do Windows apontam para o `.ico` do SRTX quando disponível
+- [x] `npm run dev` gera assets de ícone SRTX antes de abrir o Electron
+- [x] primeiro `SRTX-Setup.exe` gerado localmente em Windows
+- [x] engine standalone validado dentro do pacote local
+- [x] `SRTX-Setup.exe` passou pela CI Windows
+- [x] `SRTX-Setup.exe` publicado em GitHub Release permanente: `v0.2.0-internal.1`
+- [x] `SRTX-Setup.exe` 0.2.1 gerado localmente com trava visual/toggle/progresso taskbar
+- [x] `SRTX-Setup.exe` 0.2.2 gerado localmente com editor de captions, contagem visual e calibração de ritmo/contagem
+- [x] `SRTX-Setup.exe` 0.2.3 gerado localmente com correção visual dos toggles/popovers
+- [x] `SRTX-macOS-arm64.zip` gerado e validado pela CI macOS (arm64)
+- [ ] instalar e validar o Setup em Windows real
+- [ ] validar transcrição/exportação sem Python/Node instalados
+- [ ] definir política final de cache/download de modelos
+- [ ] avaliar code signing antes de distribuição pública
+
+CUDA/cuDNN não bloqueiam o instalador: em ausência do runtime GPU correto, o fallback CPU deve continuar funcionando.
 
 ## Validação automatizada
 
-A CI executa:
+A CI principal executa:
 
 ```powershell
 python -m unittest discover -s tests/engine -p "test_*.py" -v
@@ -105,16 +146,18 @@ npm run typecheck
 npm run build
 ```
 
+A CI Windows de distribuição também constrói o engine standalone e o instalador.
+
 As regressões cobrem transcrição, segmentação inteligente, pontuação, moeda, progresso e exportação SRT.
 
 ## Próximos checkpoints
 
-1. aumentar o corpus de fixtures conforme surgirem novos exemplos reais;
+1. instalar o Setup e executar o fluxo completo fora de `npm run dev`;
 2. importar um SRT no Premiere e fechar Fase 4;
-3. validar cancelamento/retry/presets no Windows e fechar Fase 5;
-4. concluir a limpeza visual da Fase 6;
-5. concluir CUDA/cuDNN para desempenho;
-6. avançar para empacotamento e instalador Windows.
+3. validar cancelamento/retry/presets no aplicativo instalado;
+4. concluir os últimos sinais de build/dev da Fase 6;
+5. concluir CUDA/cuDNN como melhoria de desempenho;
+6. decidir assinatura digital e política de atualização antes da distribuição pública.
 
 ## Preview local
 
@@ -124,9 +167,15 @@ npm install
 npm run dev
 ```
 
-Setup completo:
+Setup completo de desenvolvimento:
 
 ```powershell
 pwsh -ExecutionPolicy Bypass -File .\scripts\bootstrap.ps1
 npm run dev
+```
+
+Build do instalador Windows:
+
+```powershell
+npm run make:win
 ```

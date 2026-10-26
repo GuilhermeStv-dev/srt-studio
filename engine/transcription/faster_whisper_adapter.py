@@ -21,6 +21,7 @@ class TranscriptionUnavailableError(TranscriptionError):
 ProgressCallback = Callable[[str, float | None], None]
 
 _WINDOWS_CUDA_DLLS = ("cublas64_12.dll", "cudnn_ops64_9.dll")
+_MIN_SAFE_INTERVAL_MS = 50
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,6 +66,24 @@ def _report_progress(
 ) -> None:
     if callback is not None:
         callback(stage, progress)
+
+
+def _normalize_interval(
+    start_ms: int,
+    end_ms: int,
+    *,
+    next_start_ms: int | None = None,
+) -> tuple[int, int]:
+    if start_ms < 0:
+        start_ms = 0
+
+    if end_ms > start_ms:
+        return start_ms, end_ms
+
+    if next_start_ms is not None and next_start_ms > start_ms:
+        return start_ms, next_start_ms
+
+    return start_ms, start_ms + _MIN_SAFE_INTERVAL_MS
 
 
 def find_missing_windows_cuda_libraries(
@@ -199,11 +218,14 @@ def collect_word_tokens(
     valid_duration = duration if duration is not None and math.isfinite(duration) and duration > 0 else None
 
     for segment in segments:
+        segment_words: list[tuple[str, Any]] = []
         for word in getattr(segment, "words", None) or []:
             text = str(getattr(word, "word", "")).strip()
             if not text:
                 continue
+            segment_words.append((text, word))
 
+        for index, (text, word) in enumerate(segment_words):
             start = float(getattr(word, "start"))
             end = float(getattr(word, "end"))
             probability_value = getattr(word, "probability", None)
@@ -213,18 +235,34 @@ def collect_word_tokens(
                 raise TranscriptionError(f"Timestamp não finito em '{text}'")
             if start < 0:
                 raise TranscriptionError(f"Timestamp negativo em '{text}'")
-            if end <= start:
-                raise TranscriptionError(f"Duração inválida em '{text}': {start} → {end}")
             if start < previous_start:
                 raise TranscriptionError(
                     f"Timestamp regressivo em '{text}': {start} < {previous_start}"
                 )
 
+            start_ms = max(0, round(start * 1000))
+            end_ms = round(end * 1000)
+            next_start_ms = None
+            if index + 1 < len(segment_words):
+                next_start_value = getattr(segment_words[index + 1][1], "start", None)
+                try:
+                    next_start = float(next_start_value)
+                except (TypeError, ValueError):
+                    next_start = None
+                if next_start is not None and math.isfinite(next_start):
+                    next_start_ms = max(0, round(next_start * 1000))
+
+            start_ms, end_ms = _normalize_interval(
+                start_ms,
+                end_ms,
+                next_start_ms=next_start_ms,
+            )
+
             words.append(
                 WordToken(
                     text=text,
-                    start=round(start, 3),
-                    end=round(end, 3),
+                    start=round(start_ms / 1000, 3),
+                    end=round(end_ms / 1000, 3),
                     probability=probability,
                 )
             )

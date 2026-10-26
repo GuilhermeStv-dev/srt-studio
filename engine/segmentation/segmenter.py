@@ -40,6 +40,18 @@ _PREPOSITIONS = {
 _ARTICLES = {"el", "la", "los", "las", "un", "una", "unos", "unas"}
 _CLITICS = {"me", "te", "se", "nos", "lo", "la", "los", "las", "le", "les"}
 _PARTICLES = {"ya", "no", "sí", "si", "más", "mas", "muy", "también", "tambien"}
+_DEICTIC_OPENERS = {"acá", "aca", "aquí", "aqui", "ahí", "ahi"}
+_PRESENTATION_VERBS = {
+    "tenemos",
+    "tengo",
+    "tiene",
+    "tienen",
+    "hay",
+    "está",
+    "esta",
+    "están",
+    "estan",
+}
 _QUESTION_WORDS = {
     "qué",
     "que",
@@ -72,6 +84,9 @@ _LEXICAL_EDGE_PUNCTUATION = re.compile(r"^[¿¡\"'“”‘’([{]+|[?!,.;:…\"
 _OPTIONAL_EDGE_PUNCTUATION = re.compile(r"^[,.]+|[,.]+$")
 _TERMINAL_PUNCTUATION = re.compile(r"[?!]$")
 _SOFT_PUNCTUATION = re.compile(r"[,.]$")
+_COUNTDOWN_NUMBER = re.compile(r"\d{1,2}")
+_MIN_SAFE_DURATION = 0.05
+_MAX_MULTI_WORD_CAPTION_CHARS = 17
 
 
 @dataclass(frozen=True, slots=True)
@@ -181,6 +196,9 @@ def _pair_cohesion(
     if right_text in _PARTICLES:
         # Ex.: `acá ya`.
         score += 2.0
+    if left_text in _DEICTIC_OPENERS and right_text in _PRESENTATION_VERBS:
+        # Ex.: `acá tenemos`, quando a fala vem colada e o par continua curto.
+        score += 3.4
     if left_text in _QUESTION_WORDS and right_text in (_CLITICS | _ARTICLES):
         score += 1.5
 
@@ -189,6 +207,11 @@ def _pair_cohesion(
 
 def _count_target_words(words: Sequence[WordToken], config: SegmentationConfig) -> int:
     return sum(1 for word in words if _counts_toward_target(word.text, config))
+
+
+def _is_countdown_number(word: WordToken) -> bool:
+    lexical = _lexical(word.text)
+    return word.kind != "monetary" and bool(_COUNTDOWN_NUMBER.fullmatch(lexical))
 
 
 def _pause_thresholds(words: Sequence[WordToken]) -> tuple[float, float]:
@@ -230,6 +253,21 @@ def _candidate_cost(
     if any(word.kind == "monetary" for word in group):
         if total_tokens != 1 or group[0].kind != "monetary":
             return math.inf
+
+    # Dígitos simples em contagem regressiva/chamada devem ser captions próprias:
+    # `Comenzamos en` / `5` / `4` / `3` / `2` / `1`.
+    # A regra é conservadora: só isola tokens numéricos curtos já reconhecidos
+    # como dígitos, sem reinterpretar números escritos ou valores monetários.
+    if any(_is_countdown_number(word) for word in group):
+        if total_tokens != 1 or not _is_countdown_number(group[0]):
+            return math.inf
+
+    # Trava visual universal: coesão curta, preposição ignorada e alvo de palavras
+    # não podem produzir captions largas demais. Palavras únicas maiores que o limite
+    # continuam válidas, porque não existe uma fronteira interna segura para criar.
+    rendered_text = _join(group, config)
+    if total_tokens > 1 and len(rendered_text) > _MAX_MULTI_WORD_CAPTION_CHARS:
+        return math.inf
 
     # A inteligência pode expandir no máximo uma palavra física além do alvo.
     # Isso permite `qué tal` no alvo 1 sem transformar uma frase inteira em caption.
@@ -379,7 +417,7 @@ def segment_words(
     cues: list[CaptionCue] = []
     previous_cue_end = -math.inf
 
-    for group in groups:
+    for index, group in enumerate(groups):
         text = _join(group, cfg)
         if not text:
             continue
@@ -391,7 +429,11 @@ def segment_words(
             # Pequenos overlaps podem vir do ASR. Ajustamos somente o cue derivado.
             start_time = previous_cue_end
         if end_time <= start_time:
-            raise ValueError(f"Cue sem duração positiva: {text}")
+            next_group_start = groups[index + 1][0].start if index + 1 < len(groups) else None
+            if next_group_start is not None and next_group_start > start_time:
+                end_time = max(next_group_start, start_time + _MIN_SAFE_DURATION)
+            else:
+                end_time = start_time + _MIN_SAFE_DURATION
 
         cues.append(
             CaptionCue(

@@ -26,3 +26,9 @@ jobs:
       - run: npm install
       - run: npm run typecheck
       - run: npm run build
+      - name: Verify SRTX branding in production renderer
+        shell: bash
+        run: |
+          grep -R -F "Guilherme Estevão Editor" apps/desktop/out/renderer
+          grep -R -F "SRTX" apps/desktop/out/renderer
+          grep -R -F "#6C3BFF" apps/desktop/out/renderer

@@ -9,6 +9,7 @@ out/
 __pycache__/
 *.py[cod]
 .pytest_cache/
+*.egg-info/
 .venv/
 venv/
 
@@ -37,5 +38,6 @@ temp/
 Thumbs.db
 
 # Build artifacts
+build/
 release/
 coverage/

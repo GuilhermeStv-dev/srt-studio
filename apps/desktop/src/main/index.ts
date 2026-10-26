@@ -1,9 +1,13 @@
 import { app, BrowserWindow, dialog, ipcMain } from 'electron'
+import squirrelStartup from 'electron-squirrel-startup'
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import path from 'node:path'
 
+if (squirrelStartup) app.quit()
+
 const PROGRESS_PREFIX = 'SRT_PROGRESS '
+const APP_USER_MODEL_ID = 'com.squirrel.SRTX.SRTX'
 
 type ActiveTranscription = {
   child: ChildProcessWithoutNullStreams
@@ -18,6 +22,15 @@ function repoRoot(): string {
     : path.resolve(__dirname, '../../../..')
 }
 
+function appIconPath(): string | undefined {
+  const iconFile = process.platform === 'win32' ? 'srtx.ico' : 'srtx.png'
+  const candidate = app.isPackaged
+    ? path.join(process.resourcesPath, iconFile)
+    : path.join(repoRoot(), 'build', 'branding', iconFile)
+
+  return existsSync(candidate) ? candidate : undefined
+}
+
 function pythonExecutable(): string {
   const override = process.env.SRT_STUDIO_PYTHON?.trim()
   if (override) return override
@@ -29,15 +42,35 @@ function pythonExecutable(): string {
   return existsSync(localPython) ? localPython : 'python'
 }
 
+function packagedEngineExecutable(): string {
+  const override = process.env.SRT_STUDIO_ENGINE?.trim()
+  if (override) return override
+
+  return process.platform === 'win32'
+    ? path.join(process.resourcesPath, 'srt-studio-engine', 'srt-studio-engine.exe')
+    : path.join(process.resourcesPath, 'srt-studio-engine', 'srt-studio-engine')
+}
+
 function engineSpawn(args: string[]): ChildProcessWithoutNullStreams {
+  const env = {
+    ...process.env,
+    PYTHONUTF8: '1',
+    PYTHONIOENCODING: 'utf-8'
+  }
+
+  if (app.isPackaged) {
+    const executable = packagedEngineExecutable()
+    return spawn(executable, args, {
+      cwd: path.dirname(executable),
+      windowsHide: true,
+      env
+    })
+  }
+
   return spawn(pythonExecutable(), ['-X', 'utf8', '-m', 'engine.cli', ...args], {
     cwd: repoRoot(),
     windowsHide: true,
-    env: {
-      ...process.env,
-      PYTHONUTF8: '1',
-      PYTHONIOENCODING: 'utf-8'
-    }
+    env
   })
 }
 
@@ -62,6 +95,26 @@ function engineError(stderr: string, code: number | null): Error {
     }
   }
   return new Error(`Engine encerrou com código ${code}`)
+}
+
+function setTranscriptionTaskbarProgress(
+  win: BrowserWindow | null,
+  payload: { stage: string; progress: number | null }
+): void {
+  if (!win || win.isDestroyed()) return
+
+  if (payload.progress === null) {
+    win.setProgressBar(2, { mode: 'indeterminate' })
+    return
+  }
+
+  const progress = Math.min(1, Math.max(0, payload.progress))
+  win.setProgressBar(progress, { mode: 'normal' })
+}
+
+function clearTaskbarProgress(win: BrowserWindow | null): void {
+  if (!win || win.isDestroyed()) return
+  win.setProgressBar(-1)
 }
 
 function runEngineJson(
@@ -195,12 +248,14 @@ function runTranscriptionJson(
 }
 
 function createWindow(): void {
+  const icon = appIconPath()
   const win = new BrowserWindow({
     width: 1120,
     height: 780,
     minWidth: 860,
     minHeight: 620,
     backgroundColor: '#101114',
+    ...(icon ? { icon } : {}),
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
       contextIsolation: true,
@@ -208,12 +263,26 @@ function createWindow(): void {
     }
   })
 
+  if (process.platform === 'win32') {
+    if (icon) win.setIcon(icon)
+    win.setAppDetails({
+      appId: APP_USER_MODEL_ID,
+      appIconPath: icon ?? process.execPath,
+      appIconIndex: 0,
+      relaunchCommand: process.execPath,
+      relaunchDisplayName: 'SRTX'
+    })
+  }
+
   if (process.env.ELECTRON_RENDERER_URL) {
     void win.loadURL(process.env.ELECTRON_RENDERER_URL)
   } else {
     void win.loadFile(path.join(__dirname, '../renderer/index.html'))
   }
 }
+
+app.setName('SRTX')
+app.setAppUserModelId(APP_USER_MODEL_ID)
 
 app.whenReady().then(() => {
   ipcMain.handle('engine:health', async () => runEngineJson(['health']))
@@ -262,11 +331,21 @@ app.whenReady().then(() => {
       if (!input.preserveCommasPeriods) args.push('--remove-commas-periods')
       if (input.formatMonetaryThousands) args.push('--monetary-thousands')
 
-      return runTranscriptionJson(args, (payload) => {
-        if (!event.sender.isDestroyed()) {
-          event.sender.send('engine:transcription-progress', payload)
-        }
-      })
+      const sourceWindow = BrowserWindow.fromWebContents(event.sender)
+
+      try {
+        const result = await runTranscriptionJson(args, (payload) => {
+          setTranscriptionTaskbarProgress(sourceWindow, payload)
+          if (!event.sender.isDestroyed()) {
+            event.sender.send('engine:transcription-progress', payload)
+          }
+        })
+        clearTaskbarProgress(sourceWindow)
+        return result
+      } catch (error) {
+        clearTaskbarProgress(sourceWindow)
+        throw error
+      }
     }
   )
 

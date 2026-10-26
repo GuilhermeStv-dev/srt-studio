@@ -1,0 +1,178 @@
+name: Windows packaging
+
+on:
+  push:
+    branches: [main]
+    tags:
+      - 'v*'
+  pull_request:
+    paths:
+      - 'engine/**'
+      - 'scripts/build-engine.ps1'
+      - 'scripts/build-brand-icon.py'
+      - 'scripts/build-brand-icon.mjs'
+      - 'scripts/engine_entry.py'
+      - 'pyproject.toml'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'apps/desktop/**'
+      - '.github/workflows/windows-packaging.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows-installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Create project venv
+        run: python -m venv .venv
+      - name: Install desktop dependencies
+        run: npm install
+      - name: Build Windows installer
+        shell: pwsh
+        run: npm run make:win
+      - name: Verify standalone UTF-8 I/O
+        shell: pwsh
+        run: |
+          $engine = (Resolve-Path '.\dist\engine\srt-studio-engine\srt-studio-engine.exe').Path
+          $outputPath = Join-Path $env:RUNNER_TEMP '¿prueba-á.srt'
+          if (Test-Path $outputPath) { Remove-Item $outputPath -Force }
+
+          $payload = '{"captions":[{"text":"¿Quién está acá?","start":0.0,"end":1.0}]}'
+          $utf8 = [System.Text.UTF8Encoding]::new($false)
+          $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
+          $startInfo.FileName = $engine
+          $startInfo.UseShellExecute = $false
+          $startInfo.CreateNoWindow = $true
+          $startInfo.RedirectStandardInput = $true
+          $startInfo.RedirectStandardOutput = $true
+          $startInfo.RedirectStandardError = $true
+          $startInfo.StandardInputEncoding = $utf8
+          $startInfo.StandardOutputEncoding = $utf8
+          $startInfo.StandardErrorEncoding = $utf8
+          [void]$startInfo.ArgumentList.Add('export-srt')
+          [void]$startInfo.ArgumentList.Add('--output')
+          [void]$startInfo.ArgumentList.Add($outputPath)
+
+          $process = [System.Diagnostics.Process]::new()
+          $process.StartInfo = $startInfo
+          [void]$process.Start()
+          $process.StandardInput.Write($payload)
+          $process.StandardInput.Close()
+          $stdout = $process.StandardOutput.ReadToEnd()
+          $stderr = $process.StandardError.ReadToEnd()
+          $process.WaitForExit()
+
+          if ($process.ExitCode -ne 0) { throw "Engine UTF-8 smoke falhou: $stderr" }
+          $result = $stdout | ConvertFrom-Json
+          if (-not $result.ok) { throw 'Engine não retornou ok no smoke UTF-8.' }
+          if (-not $stdout.Contains('¿prueba-á.srt')) { throw "stdout corrompeu UTF-8: $stdout" }
+
+          $srt = [System.IO.File]::ReadAllText($outputPath, [System.Text.Encoding]::UTF8)
+          if (-not $srt.Contains('¿Quién está acá?')) { throw "SRT corrompeu UTF-8: $srt" }
+          Write-Host 'Engine standalone preservou UTF-8 em stdin, stdout e SRT.'
+      - name: Verify Squirrel runtime is bundled
+        shell: pwsh
+        run: |
+          $main = Get-Content -Path .\apps\desktop\out\main\index.js -Raw
+          if ($main.Contains('require("electron-squirrel-startup")') -or $main.Contains("require('electron-squirrel-startup')")) {
+            throw 'electron-squirrel-startup permaneceu como dependência externa no main bundle.'
+          }
+          Write-Host 'Squirrel startup está embutido no main bundle.'
+      - name: Verify SRTX branding in packaged renderer
+        shell: pwsh
+        run: |
+          $rendererFiles = Get-ChildItem -Path .\apps\desktop\out\renderer -Recurse -File
+          $content = ($rendererFiles | ForEach-Object { Get-Content $_.FullName -Raw -ErrorAction SilentlyContinue }) -join "`n"
+          if (-not $content.Contains('Guilherme Estevão Editor')) { throw 'Branding SRTX não entrou no renderer de produção.' }
+          if (-not $content.Contains('SRTX')) { throw 'Nome SRTX não entrou no renderer de produção.' }
+          Write-Host 'Branding SRTX presente no renderer de produção.'
+      - name: Verify SRTX Windows icon
+        shell: pwsh
+        run: |
+          $generatedIcon = Get-Item '.\build\branding\srtx.ico' -ErrorAction Stop
+          if ($generatedIcon.Length -lt 1000) { throw 'ICO SRTX gerado parece inválido ou incompleto.' }
+
+          $exe = Get-ChildItem -Path .\release\forge -Recurse -Filter 'SRTX.exe' |
+            Where-Object { $_.FullName -match 'win32-x64' } |
+            Select-Object -First 1
+          if (-not $exe) { throw 'SRTX.exe empacotado não foi encontrado.' }
+
+          $resourceIcon = Join-Path $exe.DirectoryName 'resources\srtx.ico'
+          $resourcePng = Join-Path $exe.DirectoryName 'resources\srtx.png'
+          if (-not (Test-Path $resourceIcon)) { throw 'srtx.ico não foi copiado para resources do aplicativo.' }
+          if (-not (Test-Path $resourcePng)) { throw 'srtx.png não foi copiado para resources do aplicativo.' }
+
+          Add-Type -AssemblyName System.Drawing
+          $icon = [System.Drawing.Icon]::ExtractAssociatedIcon($exe.FullName)
+          if (-not $icon) { throw 'SRTX.exe não possui ícone associado.' }
+          $bitmap = $icon.ToBitmap()
+          $pixel = $bitmap.GetPixel(1, 1)
+          if (-not ($pixel.B -gt ($pixel.R + 25) -and $pixel.B -gt ($pixel.G + 45))) {
+            throw "Ícone embutido no EXE não parece usar a identidade roxa SRTX. Pixel: R=$($pixel.R) G=$($pixel.G) B=$($pixel.B)"
+          }
+          Write-Host "Ícone SRTX embutido em $($exe.FullName)."
+      - name: Verify clean Windows taskbar identity
+        shell: pwsh
+        run: |
+          $main = Get-Content -Path .\apps\desktop\out\main\index.js -Raw
+          if (-not $main.Contains('com.squirrel.SRTX.SRTX')) { throw 'Main bundle não usa o AppUserModelID final do SRTX.' }
+          if ($main.Contains('com.squirrel.SRTStudio.SRTStudio')) { throw 'Main bundle ainda contém a identidade legada SRTStudio.' }
+          if (-not $main.Contains('srtx.ico')) { throw 'BrowserWindow não referencia o ICO SRTX para o ícone da janela Windows.' }
+          if (-not $main.Contains('setAppDetails')) { throw 'Main bundle não configura os detalhes da taskbar do Windows.' }
+          if (-not $main.Contains('setIcon')) { throw 'Main bundle não aplica explicitamente o ícone ao BrowserWindow.' }
+
+          $nupkg = Get-ChildItem -Path .\release\forge -Recurse -Filter 'SRTX-*-full.nupkg' | Select-Object -First 1
+          if (-not $nupkg) { throw 'Pacote Squirrel com identidade SRTX não foi encontrado.' }
+          Write-Host 'Identidade Squirrel, AppUserModelID e ícone da janela estão alinhados em SRTX.'
+      - name: Verify Setup executable
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem -Path .\release\forge -Recurse -Filter 'SRTX-Setup.exe' | Select-Object -First 1
+          if (-not $setup) { throw 'SRTX-Setup.exe não foi gerado.' }
+          Write-Host "Installer: $($setup.FullName)"
+      - name: Upload Windows installer artifact
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: srtx-windows-installer
+          path: release/forge/make/squirrel.windows/x64/**
+          if-no-files-found: error
+      - name: Publish Windows installer release
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $releaseNotes = @'
+            Build interno do SRTX para Windows.
+
+            Baixe `SRTX-Setup.exe` para instalar. O pacote também inclui os arquivos Squirrel (`RELEASES` e `.nupkg`) usados pelo instalador.
+          '@
+
+          # O workflow macOS pode criar a mesma release em paralelo.
+          gh release view $env:GITHUB_REF_NAME --repo $env:GITHUB_REPOSITORY *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $env:GITHUB_REF_NAME `
+              --repo $env:GITHUB_REPOSITORY `
+              --title "SRTX $env:GITHUB_REF_NAME" `
+              --notes $releaseNotes `
+              --prerelease
+          }
+
+          gh release upload $env:GITHUB_REF_NAME `
+            --repo $env:GITHUB_REPOSITORY `
+            --clobber `
+            release/forge/make/squirrel.windows/x64/SRTX-Setup.exe `
+            (Get-Item release/forge/make/squirrel.windows/x64/SRTX-*-full.nupkg).FullName `
+            release/forge/make/squirrel.windows/x64/RELEASES
+          if ($LASTEXITCODE -ne 0) { throw 'Falha ao publicar artefatos Windows na release.' }

@@ -166,7 +166,7 @@ Critério de saída: instalação limpa em outra máquina Windows sem depender d
 
 ## Fase 9 — Voz e dublagem local 💡 (proposta, pós-MVP)
 
-**Status:** proposta registrada em `docs/DECISIONS.md` (D-013), **pendente de aprovação do usuário**. Não implementar enquanto D-013 estiver como proposta.
+**Status:** proposta registrada em `docs/DECISIONS.md` (D-016), **pendente de aprovação do usuário**. Não implementar enquanto D-016 estiver como proposta.
 
 Objetivo: gerar locução/dublagem local sincronizada a partir dos `CaptionCue[]` que o SRT Studio já produz.
 
@@ -197,7 +197,7 @@ Não implementar sem nova decisão explícita:
 - assistente de IA/chat;
 - colaboração multiusuário;
 - sync em nuvem;
-- voz/TTS/clonagem/dublagem (proposta em D-013 / Fase 9, aguardando aprovação).
+- voz/TTS/clonagem/dublagem (proposta em D-016 / Fase 9, aguardando aprovação).
 
 ## Checkpoint atual
 

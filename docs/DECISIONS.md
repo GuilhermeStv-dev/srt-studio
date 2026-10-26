@@ -104,7 +104,39 @@ A primeira versão usava aproximadamente 12 caracteres por caption como preferê
 
 **Regras estruturais preservadas:** moeda continua sempre isolada; `¿ ? ¡ !` continuam obrigatórios; SRT continua sem overlap/duração zero/timestamp regressivo.
 
-## D-013 — PROPOSTA: fase Voz/Dublagem local (pós-MVP)
+## D-013 — Trava visual universal de 17 caracteres
+
+**Decisão:** captions com mais de uma palavra física não podem ultrapassar 17 caracteres depois da renderização, contando o espaço entre palavras e a pontuação preservada.
+
+**Motivo:** impedir casos visualmente largos demais em legendas dinâmicas, como `CONFIANZUDO TAMBIÉN`, mesmo quando a contagem de palavras, a cadência ou a coesão curta permitiriam manter o par junto.
+
+**Interação com preposições:** ignorar preposições na contagem continua válido, mas não pode furar a parede visual. Se `palavra + espaço + preposição` passar de 17 caracteres, o segmentador deve separar.
+
+**Exceção:** uma palavra única acima de 17 caracteres permanece permitida, porque o engine não deve alterar ou quebrar internamente uma palavra reconhecida apenas para caber no limite.
+
+## D-014 — Preview vira editor de revisão
+
+**Decisão:** depois da transcrição, o preview de captions deixa de ser somente leitura e passa a permitir edição manual antes da exportação.
+
+**Motivo:** a segmentação automática deve chegar perto do ideal, mas o workflow real precisa da liberdade de revisar, dividir e excluir segmentos como em editores modernos de legenda.
+
+**Limite:** a UI pode editar `CaptionCue[]` já gerados, mas não implementa regras linguísticas novas. A lógica automática de transcrição, normalização, segmentação e validação continua no engine Python.
+
+**Ajuste de UX:** a coluna lateral do preview mostra a contagem exata de caracteres da caption, não o índice do segmento. Índice/timestamps são auxiliares; leitura e largura visual são o foco.
+
+**Calibração associada:** pares curtos como `acá tenemos` podem ficar juntos quando os timestamps indicam fala colada; dígitos simples de contagem/chamada, como `5 4 3 2 1`, ficam isolados em captions próprias.
+
+## D-015 — Build macOS Apple Silicon
+
+**Decisão:** além do instalador Windows, o SRTX é distribuído como `SRTX.app` para macOS arm64 (M1/M2/M3…), gerado pela CI `macos-packaging.yml` em `macos-14`.
+
+**Motivo:** permitir uso num MacBook sem transformar o produto em site/serviço e sem abrir mão do fluxo local-first (D-003).
+
+**Como:** mesmo Electron e mesmo engine Python; o engine é empacotado com PyInstaller via `scripts/build-engine.sh`. No Mac não há CUDA: o runtime cai automaticamente para CPU `int8`.
+
+**Limites:** app assinado apenas ad-hoc (sem Apple Developer ID/notarização). Windows continua sendo a plataforma principal de validação.
+
+## D-016 — PROPOSTA: fase Voz/Dublagem local (pós-MVP)
 
 **Status:** proposta, **pendente de aprovação explícita do usuário**. Enquanto este status não mudar, nenhum agente deve implementar código de TTS, clonagem ou dublagem.
 
