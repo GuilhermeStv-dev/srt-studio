@@ -157,7 +157,7 @@ A fixture pode incluir `normalization.monetary_thousands` quando o caso precisar
 
 ## Próximo objetivo imediato
 
-0. validar a entrega 2 no `npm run dev`; depois, D-017 entrega 3: navegação em etapas (1 Transcrição · 2 Revisão · 3 Legendas) com as opções de segmentação na etapa 3 e confirmação antes de descartar edições.
+0. validar no `npm run dev` a entrega 2 e o novo visual (D-018, branch `ai/ui-redesign`); depois, D-017 entrega 3: navegação em etapas (1 Transcrição · 2 Revisão · 3 Legendas) com as opções de segmentação na etapa 3 e confirmação antes de descartar edições.
 1. reinstalar/rodar uma build que contenha o commit mais recente antes de retestar o arquivo do usuário;
 2. adicionar novos trechos reais ao corpus de fixtures conforme o usuário apontar cortes ruins;
 3. não ajustar D-012 sem regressão correspondente;

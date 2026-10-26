@@ -254,7 +254,7 @@ function createWindow(): void {
     height: 780,
     minWidth: 860,
     minHeight: 620,
-    backgroundColor: '#101114',
+    backgroundColor: '#FDFCFC',
     ...(icon ? { icon } : {}),
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),

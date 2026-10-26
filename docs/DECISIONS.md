@@ -175,3 +175,19 @@ A primeira versão usava aproximadamente 12 caracteres por caption como preferê
 2. Dividir/juntar palavras na revisão: **fora do MVP**. A revisão só substitui (1 → 1) ou exclui palavras.
 3. Verificação ortográfica por dicionário: **fora do MVP**. Basta o destaque de palavras com `probability` baixa.
 4. Opções de segmentação: ficam **na etapa 3 (Legendas)**, para regerar sem retranscrever.
+
+## D-018 — Identidade visual clara, inspirada no ElevenLabs
+
+**Decisão:** a interface do SRTX adota a linguagem visual de editores modernos de voz/transcrição como o ElevenLabs, a pedido do usuário em 26/10/2026:
+- fundo off-white quente (`#FDFCFC`/`#F5F3F1`), preto como ação primária e cinzas quentes para texto secundário;
+- botões em pílula e cards com contorno de 0,5px;
+- layout de app: barra lateral com etapas, barra superior com ações e painel de configurações à direita.
+
+**Limites:**
+- não usar logo, nome, ícones, imagens nem fontes proprietárias do ElevenLabs;
+- títulos em Inter peso 300 com tracking negativo substituem a Waldenburg (comercial);
+- Inter e Geist Mono (OFL) são empacotadas localmente via `@fontsource`, sem CDN em runtime (D-003).
+
+**Marca SRTX preservada:** nome, ícone e o roxo `#6C3BFF` continuam; o roxo vira acento único (marca, etapa concluída, foco). As verificações de branding da CI (`SRTX`, `Guilherme Estevão Editor`, `#6C3BFF`) continuam válidas.
+
+**Substitui:** o tema escuro roxo de `brand.css`/`brand-overrides.css`, que foram removidos.

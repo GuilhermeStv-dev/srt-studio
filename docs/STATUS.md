@@ -96,6 +96,12 @@ Cada novo corte considerado ruim deve virar uma fixture mínima antes de alterar
 - [x] entrega 1: comando `segment` no engine (`WordToken[]` revisados + opções via stdin → `CaptionCue[]`), com cadeia compartilhada em `engine/pipeline.py`; `transcribe` usa a mesma cadeia e continua devolvendo `captions`
 - [x] entrega 2: UI guarda todas as `words` e as opções que geraram as legendas; ao mudar densidade/preposições/pontuação/moeda aparece “Regerar legendas”, que chama `segment` via IPC `engine:segment` sem retranscrever (confirmação se houver edição manual)
 - [ ] validar a entrega 2 no `npm run dev` do Windows
+
+### Identidade visual — D-018
+
+- [x] tema claro inspirado no ElevenLabs: barra lateral com etapas, barra superior com ações, painel de configurações, área de soltar arquivo, editor de legendas em linhas com tempo `mm:ss.cc` e contagem de caracteres (destaque acima de 17 com mais de uma palavra)
+- [x] Inter + Geist Mono locais (`@fontsource`); `brand.css`/`brand-overrides.css` removidos
+- [ ] validar o visual no `npm run dev` do Windows
 - [ ] entrega 3: navegação em etapas com confirmação antes de descartar edições de cues
 - [ ] entrega 4: tela de revisão do texto (substituir/excluir palavra, destaque de `probability` baixa)
 - [ ] entrega 5: player sincronizado no editor de legendas
