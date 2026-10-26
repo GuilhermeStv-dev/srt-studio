@@ -6,8 +6,7 @@ import sys
 
 from engine import __version__
 from engine.models import CaptionCue
-from engine.normalization import merge_fragmented_currency_numbers, normalize_monetary_tokens
-from engine.segmentation import SegmentationConfig, segment_words
+from engine.pipeline import SegmentationOptions, build_captions, parse_reviewed_words
 from engine.srt import export_srt
 from engine.srt.validate import InvalidCueError
 from engine.transcription import (
@@ -66,6 +65,12 @@ def runtime(device: str) -> int:
 
 def transcribe(args: argparse.Namespace) -> int:
     progress_callback = emit_progress if args.progress_events else None
+    options = SegmentationOptions(
+        target_words=args.target_words,
+        ignore_prepositions=not args.count_prepositions,
+        preserve_commas_periods=not args.remove_commas_periods,
+        monetary_thousands=args.monetary_thousands,
+    )
     try:
         result = transcribe_file(
             args.input,
@@ -75,20 +80,7 @@ def transcribe(args: argparse.Namespace) -> int:
             vad_filter=not args.no_vad,
             progress_callback=progress_callback,
         )
-
-        repaired_words = merge_fragmented_currency_numbers(result.words)
-        segmentation_words = normalize_monetary_tokens(
-            repaired_words,
-            format_thousands=args.monetary_thousands,
-        )
-        cues = segment_words(
-            segmentation_words,
-            SegmentationConfig(
-                target_words=args.target_words,
-                ignore_prepositions=not args.count_prepositions,
-                preserve_commas_periods=not args.remove_commas_periods,
-            ),
-        )
+        cues = build_captions(result.words, options)
     except (
         FileNotFoundError,
         TranscriptionError,
@@ -104,12 +96,36 @@ def transcribe(args: argparse.Namespace) -> int:
             "ok": True,
             **result.to_dict(),
             "captions": [cue.to_dict() for cue in cues],
-            "segmentation": {
-                "target_words": args.target_words,
-                "ignore_prepositions": not args.count_prepositions,
-                "preserve_commas_periods": not args.remove_commas_periods,
-                "monetary_thousands": args.monetary_thousands,
-            },
+            "segmentation": options.to_dict(),
+        }
+    )
+    return 0
+
+
+def segment_command(args: argparse.Namespace) -> int:
+    try:
+        raw = sys.stdin.read()
+        if not raw.strip():
+            raise ValueError("Nenhuma palavra foi enviada para segmentação")
+        try:
+            payload = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise ValueError("Payload de palavras não é JSON válido") from exc
+        if not isinstance(payload, dict):
+            raise ValueError("Payload precisa ser um objeto com words e segmentation")
+
+        words = parse_reviewed_words(payload.get("words"))
+        options = SegmentationOptions.from_dict(payload.get("segmentation"))
+        cues = build_captions(words, options)
+    except ValueError as exc:
+        print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False), file=sys.stderr)
+        return 6
+
+    emit(
+        {
+            "ok": True,
+            "captions": [cue.to_dict() for cue in cues],
+            "segmentation": options.to_dict(),
         }
     )
     return 0
@@ -203,6 +219,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Exibe valores monetários redondos no formato N mil",
     )
 
+    sub.add_parser(
+        "segment",
+        help="Gera captions a partir de palavras revisadas recebidas via stdin (sem retranscrever)",
+    )
+
     export_parser = sub.add_parser(
         "export-srt", help="Valida captions recebidas via stdin e grava um arquivo SRT UTF-8"
     )
@@ -225,6 +246,8 @@ def main() -> int:
         return runtime(args.device)
     if args.command == "transcribe":
         return transcribe(args)
+    if args.command == "segment":
+        return segment_command(args)
     if args.command == "export-srt":
         return export_srt_command(args)
     return 2
