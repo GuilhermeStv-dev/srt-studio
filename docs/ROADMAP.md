@@ -117,9 +117,9 @@ Entregas:
 - histórico somente da sessão, se necessário;
 - fluxo claro selecionar → transcrever → revisar → exportar.
 
-### Proposta D-017 — fluxo em 3 etapas 💡
+### D-017 — fluxo em 3 etapas 🟡
 
-**Status:** proposta registrada em `docs/DECISIONS.md` (D-017), **pendente de aprovação do usuário**. Não implementar enquanto D-017 estiver como proposta.
+**Status:** aprovada (D-017 em `docs/DECISIONS.md`). Implementação em andamento, uma entrega por vez. No MVP não há dividir/juntar palavras nem dicionário ortográfico; as opções de segmentação ficam na etapa 3.
 
 Fluxo: **Transcrição → Revisão do texto → Legendas (editor + player) → Exportar SRT**.
 
@@ -132,7 +132,7 @@ Entregas pequenas, uma por PR, nesta ordem:
 5. **Player no editor de legendas:** vídeo/áudio local sincronizado; clicar na legenda posiciona a mídia e a legenda corrente fica destacada.
 6. **Opcionais, após validação:** verificação ortográfica local, dividir/juntar palavras com redistribuição de tempo no engine, waveform/timeline.
 
-Critério de saída da proposta: com um vídeo ES-PY real, o usuário corrige erros no texto antes de segmentar, gera legendas, ajusta no editor com o player e exporta um SRT que importa no Premiere, sem retranscrever ao mudar opções.
+Critério de saída do fluxo: com um vídeo ES-PY real, o usuário corrige erros no texto antes de segmentar, gera legendas, ajusta no editor com o player e exporta um SRT que importa no Premiere, sem retranscrever ao mudar opções.
 
 Critério de saída: usuário consegue concluir o fluxo principal sem terminal após o ambiente estar instalado.
 

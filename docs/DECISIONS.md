@@ -136,9 +136,9 @@ A primeira versão usava aproximadamente 12 caracteres por caption como preferê
 
 **Limites:** app assinado apenas ad-hoc (sem Apple Developer ID/notarização). Windows continua sendo a plataforma principal de validação.
 
-## D-017 — PROPOSTA: fluxo em 3 etapas (transcrição → revisão do texto → editor de legendas)
+## D-017 — Fluxo em 3 etapas (transcrição → revisão do texto → editor de legendas)
 
-**Status:** proposta, **pendente de aprovação explícita do usuário**. Enquanto este status não mudar, nenhum agente deve reestruturar o fluxo da UI ou o contrato do engine com base nela.
+**Status:** aprovada pelo usuário em 26/10/2026, com as respostas registradas em **Respostas do usuário** ao final desta decisão.
 
 **Contexto:** hoje o SRTX funciona em uma tela única. O comando `transcribe` transcreve **e** segmenta na mesma chamada e devolve `words` + `captions`. Erros de reconhecimento só podem ser corrigidos depois da segmentação, legenda por legenda, no editor de D-014. Mudar uma opção de segmentação exige transcrever de novo. O fluxo desejado é inspirado em editores modernos de transcrição/legenda (ex.: ElevenLabs): primeiro o texto, depois as legendas.
 
@@ -170,8 +170,8 @@ A primeira versão usava aproximadamente 12 caracteres por caption como preferê
 
 **Fora desta proposta:** identidade visual copiada do ElevenLabs (vale só o fluxo), persistência de projetos entre sessões, waveform/timeline arrastável (entrega posterior opcional), identificação de falantes.
 
-**Questões em aberto para o usuário:**
-1. Aprovar o fluxo e a ordem das entregas da Fase 5 no `ROADMAP.md`.
-2. A revisão deve permitir dividir/juntar palavras já no MVP, com redistribuição de tempo no engine?
-3. Verificação ortográfica por dicionário entra no MVP, ou basta o destaque de baixa confiança?
-4. As opções de segmentação ficam na etapa 3, para regerar sem retranscrever, ou continuam antes da transcrição?
+**Respostas do usuário (aprovação de 26/10/2026):**
+1. Fluxo e ordem das entregas da Fase 5: **aprovados**.
+2. Dividir/juntar palavras na revisão: **fora do MVP**. A revisão só substitui (1 → 1) ou exclui palavras.
+3. Verificação ortográfica por dicionário: **fora do MVP**. Basta o destaque de palavras com `probability` baixa.
+4. Opções de segmentação: ficam **na etapa 3 (Legendas)**, para regerar sem retranscrever.
