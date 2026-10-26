@@ -58,8 +58,10 @@ jobs:
 
           say -o "$RUNNER_TEMP/smoke.wav" --file-format=WAVE --data-format=LEI16@16000 \
             'Hello, this is a subtitle test for the studio.'
-          "$engine" transcribe "$RUNNER_TEMP/smoke.wav" --model tiny --language en > transcript.json 2> transcript.err
+          status=0
+          "$engine" transcribe "$RUNNER_TEMP/smoke.wav" --model tiny --language en > transcript.json 2> transcript.err || status=$?
           cat transcript.err
+          if [ "$status" -ne 0 ]; then echo "Transcrição do engine congelado falhou (código $status)."; cat transcript.json; exit "$status"; fi
           if grep -q 'invalid choice' transcript.err; then
             echo 'Engine congelado não tratou subprocessos do multiprocessing.'; exit 1
           fi
