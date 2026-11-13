@@ -19,6 +19,24 @@ contextBridge.exposeInMainWorld('srtStudio', {
     preserveCommasPeriods: boolean
     formatMonetaryThousands: boolean
   }) => ipcRenderer.invoke('engine:transcribe', input),
+  transcribeText: (input: { filePath: string; model: string; language: string | null }) =>
+    ipcRenderer.invoke('engine:transcribe-text', input),
+  caption: (input: {
+    filePath: string
+    language: string
+    segments: Array<{ text: string; start: number; end: number }>
+    segmentation: {
+      target_words: number
+      ignore_prepositions: boolean
+      preserve_commas_periods: boolean
+      monetary_thousands: boolean
+    }
+  }) => ipcRenderer.invoke('engine:caption', input),
+  onCaptionProgress: (callback: (payload: TranscriptionProgress) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, payload: TranscriptionProgress) => callback(payload)
+    ipcRenderer.on('engine:caption-progress', listener)
+    return () => ipcRenderer.removeListener('engine:caption-progress', listener)
+  },
   cancelTranscription: () => ipcRenderer.invoke('engine:cancel-transcription'),
   onTranscriptionProgress: (callback: (payload: TranscriptionProgress) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, payload: TranscriptionProgress) => callback(payload)

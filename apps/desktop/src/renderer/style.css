@@ -434,6 +434,13 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 .caption-row:hover, .caption-row:focus-within { background: var(--surface-soft); }
 
+/* Etapa Texto (D-019): parágrafos editáveis, sem coluna lateral de ações. */
+.text-row { grid-template-columns: 64px minmax(0, 1fr); align-items: start; }
+.text-row .caption-time { padding-top: 9px; }
+.text-row textarea { line-height: 1.55; }
+
+.view-switch { grid-template-columns: repeat(2, 1fr); align-self: flex-start; min-width: 260px; }
+
 .caption-time { color: var(--muted); font-family: var(--font-mono); font-size: 11.5px; white-space: nowrap; }
 
 .caption-row textarea {

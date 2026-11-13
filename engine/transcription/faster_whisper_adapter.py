@@ -366,3 +366,118 @@ def transcribe_file(
         words=words,
         runtime_warning=runtime.warning,
     )
+
+
+@dataclass(frozen=True, slots=True)
+class TextSegmentResult:
+    text: str
+    start: float
+    end: float
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(frozen=True, slots=True)
+class TextTranscriptionResult:
+    """Etapa 1 de D-019: só o texto, em parágrafos com a janela aproximada.
+
+    Os tempos por palavra são produzidos depois, pelo alinhamento forçado.
+    """
+
+    language: str
+    language_probability: float | None
+    duration: float
+    model: str
+    device: str
+    compute_type: str
+    segments: tuple[TextSegmentResult, ...]
+    runtime_warning: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "language": self.language,
+            "language_probability": self.language_probability,
+            "duration": self.duration,
+            "model": self.model,
+            "device": self.device,
+            "compute_type": self.compute_type,
+            "segments": [segment.to_dict() for segment in self.segments],
+            "runtime_warning": self.runtime_warning,
+        }
+
+
+def transcribe_text_file(
+    input_path: str | Path,
+    *,
+    model_name: str = "large-v3",
+    language: str | None = None,
+    requested_device: str = "auto",
+    vad_filter: bool = True,
+    progress_callback: ProgressCallback | None = None,
+) -> TextTranscriptionResult:
+    path = Path(input_path).expanduser().resolve()
+    if not path.is_file():
+        raise FileNotFoundError(f"Arquivo não encontrado: {path}")
+
+    _report_progress(progress_callback, "preparing", None)
+    runtime = detect_runtime(requested_device)
+
+    try:
+        from faster_whisper import WhisperModel  # type: ignore[import-not-found]
+    except ImportError as exc:
+        raise TranscriptionUnavailableError(
+            "faster-whisper não está instalado. Instale com: pip install -e .[transcription]"
+        ) from exc
+
+    segments: list[TextSegmentResult] = []
+    try:
+        _report_progress(progress_callback, "loading_model", None)
+        model = WhisperModel(model_name, device=runtime.device, compute_type=runtime.compute_type)
+        raw_segments, info = model.transcribe(
+            str(path),
+            language=language,
+            word_timestamps=False,
+            vad_filter=vad_filter,
+        )
+        duration_hint_value = getattr(info, "duration", None)
+        try:
+            duration_hint = None if duration_hint_value is None else float(duration_hint_value)
+        except (TypeError, ValueError):
+            duration_hint = None
+        valid_duration = duration_hint if duration_hint is not None and duration_hint > 0 else None
+        _report_progress(progress_callback, "transcribing", 0.0 if valid_duration else None)
+
+        for raw in raw_segments:
+            text = " ".join(str(getattr(raw, "text", "")).split())
+            start = float(getattr(raw, "start", 0.0))
+            end = float(getattr(raw, "end", start))
+            if text and math.isfinite(start) and math.isfinite(end):
+                segments.append(TextSegmentResult(text=text, start=round(max(0.0, start), 3), end=round(max(start, end), 3)))
+            if valid_duration:
+                _report_progress(progress_callback, "transcribing", min(0.99, max(0.0, end / valid_duration)))
+    except RuntimeError as exc:
+        text = str(exc)
+        if any(name.lower() in text.lower() for name in _WINDOWS_CUDA_DLLS):
+            raise TranscriptionUnavailableError(
+                "A inferência CUDA não pôde iniciar porque uma biblioteca NVIDIA está ausente. "
+                f"Detalhe: {text}. Instale CUDA Toolkit 12.x + cuDNN 9 para CUDA 12, "
+                "reabra o aplicativo e use 'Reverificar runtime'."
+            ) from exc
+        raise TranscriptionError(f"Falha no runtime de transcrição: {text}") from exc
+
+    if not segments:
+        raise TranscriptionError("Nenhuma fala foi detectada no arquivo")
+
+    duration = float(getattr(info, "duration", segments[-1].end))
+    language_probability_value = getattr(info, "language_probability", None)
+    return TextTranscriptionResult(
+        language=str(getattr(info, "language", language or "unknown")),
+        language_probability=None if language_probability_value is None else float(language_probability_value),
+        duration=round(duration, 3),
+        model=model_name,
+        device=runtime.device,
+        compute_type=runtime.compute_type,
+        segments=tuple(segments),
+        runtime_warning=runtime.warning,
+    )

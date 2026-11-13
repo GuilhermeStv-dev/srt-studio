@@ -28,6 +28,8 @@ type Caption = { text: string; start: number; end: number }
 
 type Word = { text: string; start: number; end: number; probability?: number | null }
 
+type TextSegment = { text: string; start: number; end: number }
+
 type SegmentationSettings = {
   target_words: number
   ignore_prepositions: boolean
@@ -48,12 +50,32 @@ type TranscriptionState =
       status: 'success'
       message: string
       summary: string
-      words: Word[]
-      captions: Caption[]
-      segmentation: SegmentationSettings
-      captionsEdited: boolean
+      language: string
     }
   | { status: 'error'; message: string }
+
+// Etapa 2 de D-019: sincronização por alinhamento forçado + segmentação.
+type CaptionJobState =
+  | { status: 'idle' }
+  | {
+      status: 'loading'
+      message: string
+      stage: string
+      progress: number | null
+      cancelling: boolean
+    }
+  | { status: 'error'; message: string }
+
+type CaptionsState = {
+  words: Word[]
+  captions: Caption[]
+  segmentation: SegmentationSettings
+  captionsEdited: boolean
+  // Versão do texto usada para gerar estas legendas; se o texto mudar, elas ficam desatualizadas.
+  textVersion: number
+}
+
+type View = 'text' | 'captions'
 
 type SegmentState =
   | { status: 'idle' | 'loading'; message: string }
@@ -91,12 +113,22 @@ function progressMessage(stage: string, progress: number | null): string {
       : `Transcrevendo áudio… ${Math.round(progress * 100)}%`
   }
   if (stage === 'finalizing') return 'Segmentando e validando captions…'
+  if (stage === 'loading_aligner') return 'Carregando modelo de sincronização…'
+  if (stage === 'aligning') {
+    return progress === null
+      ? 'Sincronizando cada palavra com o áudio…'
+      : `Sincronizando cada palavra com o áudio… ${Math.round(progress * 100)}%`
+  }
   if (stage === 'completed') return 'Finalizando resultado…'
   return 'Transcrevendo…'
 }
 
 function resultMessage(captionCount: number, wordCount: number, summary: string): string {
   return `${captionCount} captions · ${wordCount} palavras · ${summary}`
+}
+
+function countWords(segments: TextSegment[]): number {
+  return segments.reduce((total, segment) => total + segment.text.split(/\s+/).filter(Boolean).length, 0)
 }
 
 function sameSegmentation(left: SegmentationSettings, right: SegmentationSettings): boolean {
@@ -206,20 +238,28 @@ function App() {
     message: 'O SRT ficará disponível depois da transcrição.'
   })
   const [segmentState, setSegmentState] = useState<SegmentState>({ status: 'idle', message: '' })
+  const [textSegments, setTextSegments] = useState<TextSegment[]>([])
+  const [textVersion, setTextVersion] = useState(0)
+  const [captionJob, setCaptionJob] = useState<CaptionJobState>({ status: 'idle' })
+  const [captionsData, setCaptionsData] = useState<CaptionsState | null>(null)
+  const [view, setView] = useState<View>('text')
   const [openHelp, setOpenHelp] = useState<HelpTopic | null>(null)
   const captionInputRefs = useRef<Array<HTMLTextAreaElement | null>>([])
 
   const selectedName = useMemo(() => fileName(filePath), [filePath])
   const isTranscribing = transcription.status === 'loading'
   const isSegmenting = segmentState.status === 'loading'
+  const isCaptioning = captionJob.status === 'loading'
+  const isBusy = isTranscribing || isCaptioning || isSegmenting
+  const textChanged = captionsData !== null && captionsData.textVersion !== textVersion
   const currentSegmentation = useMemo<SegmentationSettings>(() => ({
     target_words: targetWords,
     ignore_prepositions: ignorePrepositions,
     preserve_commas_periods: preserveCommasPeriods,
     monetary_thousands: formatMonetaryThousands
   }), [targetWords, ignorePrepositions, preserveCommasPeriods, formatMonetaryThousands])
-  const segmentationChanged = transcription.status === 'success' &&
-    !sameSegmentation(transcription.segmentation, currentSegmentation)
+  const segmentationChanged = captionsData !== null &&
+    !sameSegmentation(captionsData.segmentation, currentSegmentation)
   const allPresets = useMemo(() => [...BUILTIN_PRESETS, ...customPresets], [customPresets])
   const currentSettings = useMemo<PresetSettings>(() => ({
     model,
@@ -255,7 +295,7 @@ function App() {
   }
 
   function applyPreset(presetId: string) {
-    if (isTranscribing || presetId === 'custom') return
+    if (isBusy || presetId === 'custom') return
     const preset = allPresets.find((item) => item.id === presetId)
     if (!preset) return
     applySettings(preset)
@@ -263,7 +303,7 @@ function App() {
   }
 
   function saveCurrentPreset() {
-    if (isTranscribing) return
+    if (isBusy) return
     const suggestedName = activeCustomPreset?.name ?? ''
     const requested = window.prompt('Nome do preset', suggestedName)
     const name = requested?.trim()
@@ -288,7 +328,7 @@ function App() {
   }
 
   function deleteActivePreset() {
-    if (isTranscribing || !activeCustomPreset) return
+    if (isBusy || !activeCustomPreset) return
     if (!window.confirm(`Excluir o preset “${activeCustomPreset.name}”?`)) return
 
     setCustomPresets((current) => {
@@ -302,6 +342,10 @@ function App() {
   function applySourceFile(nextFilePath: string) {
     setFilePath(nextFilePath)
     setSourceMessage(null)
+    setTextSegments([])
+    setCaptionsData(null)
+    setCaptionJob({ status: 'idle' })
+    setView('text')
     setTranscription({
       status: 'idle',
       message: 'Arquivo pronto. A transcrição ainda não altera nem sobrescreve o original.'
@@ -350,7 +394,7 @@ function App() {
   }
 
   async function selectMedia() {
-    if (isTranscribing) return
+    if (isBusy) return
     const result = await window.srtStudio.selectMedia()
     if (!result.canceled && result.filePath) {
       applySourceFile(result.filePath)
@@ -359,14 +403,14 @@ function App() {
 
   function handleDragEnter(event: React.DragEvent<HTMLElement>) {
     event.preventDefault()
-    if (isTranscribing || !event.dataTransfer.types.includes('Files')) return
+    if (isBusy || !event.dataTransfer.types.includes('Files')) return
     dragDepth.current += 1
     setIsDragging(true)
   }
 
   function handleDragOver(event: React.DragEvent<HTMLElement>) {
     event.preventDefault()
-    if (isTranscribing || !event.dataTransfer.types.includes('Files')) return
+    if (isBusy || !event.dataTransfer.types.includes('Files')) return
     event.dataTransfer.dropEffect = 'copy'
     setIsDragging(true)
   }
@@ -382,8 +426,8 @@ function App() {
     dragDepth.current = 0
     setIsDragging(false)
 
-    if (isTranscribing) {
-      setSourceMessage('Cancele a transcrição atual antes de trocar o arquivo.')
+    if (isBusy) {
+      setSourceMessage('Cancele o processamento atual antes de trocar o arquivo.')
       return
     }
 
@@ -410,7 +454,15 @@ function App() {
 
   async function runTranscription() {
     if (!filePath) return
+    if (
+      (textVersion > 0 || captionsData) &&
+      !window.confirm('Transcrever de novo substitui o texto revisado e as legendas atuais. Continuar?')
+    ) {
+      return
+    }
+
     setExportState({ status: 'idle', message: 'Aguardando a nova transcrição.' })
+    setCaptionJob({ status: 'idle' })
     setTranscription({
       status: 'loading',
       message: 'Preparando runtime de transcrição…',
@@ -420,24 +472,16 @@ function App() {
     })
 
     try {
-      const result = await window.srtStudio.transcribe({
+      const result = await window.srtStudio.transcribeText({
         filePath,
         model,
-        language: language === 'auto' ? null : language,
-        targetWords,
-        ignorePrepositions,
-        preserveCommasPeriods,
-        formatMonetaryThousands
+        language: language === 'auto' ? null : language
       })
 
       if (!result.ok) {
         setTranscription({
           status: 'idle',
-          message: 'Transcrição cancelada. Nenhuma caption nova foi aplicada.'
-        })
-        setExportState({
-          status: 'idle',
-          message: 'A transcrição foi cancelada; nenhum SRT novo foi gerado.'
+          message: 'Transcrição cancelada. Nenhum texto novo foi aplicado.'
         })
         return
       }
@@ -445,18 +489,19 @@ function App() {
       const fallbackLabel = result.runtime_warning ? ' · fallback CUDA → CPU' : ''
       const summary = `${result.language} · ${result.device.toUpperCase()}${fallbackLabel} · ${result.duration.toFixed(1)}s`
       setSegmentState({ status: 'idle', message: '' })
+      setTextSegments(result.segments)
+      setTextVersion(0)
+      setCaptionsData(null)
+      setView('text')
       setTranscription({
         status: 'success',
-        message: resultMessage(result.captions.length, result.words.length, summary),
+        message: `${countWords(result.segments)} palavras · ${summary}`,
         summary,
-        words: result.words,
-        captions: result.captions,
-        segmentation: result.segmentation,
-        captionsEdited: false
+        language: result.language
       })
       setExportState({
         status: 'idle',
-        message: 'Captions validadas no pipeline. Escolha onde salvar o SRT.'
+        message: 'Revise o texto e clique em “Gerar legendas”.'
       })
     } catch (error) {
       setTranscription({
@@ -466,25 +511,91 @@ function App() {
     }
   }
 
-  async function regenerateCaptions() {
-    if (transcription.status !== 'success' || isSegmenting) return
+  function updateSegmentText(index: number, text: string) {
+    setTextSegments((current) => current.map((segment, currentIndex) => (
+      currentIndex === index ? { ...segment, text } : segment
+    )))
+    setTextVersion((current) => current + 1)
+  }
+
+  async function generateCaptions() {
+    if (!filePath || transcription.status !== 'success' || isBusy) return
     if (
-      transcription.captionsEdited &&
+      captionsData?.captionsEdited &&
+      !window.confirm('Gerar as legendas de novo descarta as edições manuais feitas nas legendas. Continuar?')
+    ) {
+      return
+    }
+
+    const segments = textSegments.filter((segment) => segment.text.trim())
+    if (segments.length === 0) {
+      setCaptionJob({ status: 'error', message: 'O texto está vazio; não há o que legendar.' })
+      return
+    }
+
+    const versionUsed = textVersion
+    const segmentation = currentSegmentation
+    setCaptionJob({
+      status: 'loading',
+      message: 'Carregando modelo de sincronização…',
+      stage: 'loading_aligner',
+      progress: null,
+      cancelling: false
+    })
+
+    try {
+      const result = await window.srtStudio.caption({
+        filePath,
+        language: transcription.language,
+        segments,
+        segmentation
+      })
+
+      if (!result.ok) {
+        setCaptionJob({ status: 'idle' })
+        return
+      }
+
+      setCaptionJob({ status: 'idle' })
+      setSegmentState({ status: 'idle', message: '' })
+      setCaptionsData({
+        words: result.words,
+        captions: result.captions,
+        segmentation: result.segmentation,
+        captionsEdited: false,
+        textVersion: versionUsed
+      })
+      setView('captions')
+      setExportState({
+        status: 'idle',
+        message: 'Legendas sincronizadas com o áudio. Escolha onde salvar o SRT.'
+      })
+    } catch (error) {
+      setCaptionJob({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Falha ao gerar legendas'
+      })
+    }
+  }
+
+  async function regenerateCaptions() {
+    if (!captionsData || isBusy) return
+    if (
+      captionsData.captionsEdited &&
       !window.confirm('Regerar as legendas descarta as edições manuais feitas no preview. Continuar?')
     ) {
       return
     }
 
-    const { words, summary } = transcription
+    const { words } = captionsData
     const segmentation = currentSegmentation
     setSegmentState({ status: 'loading', message: 'Gerando legendas com as opções atuais…' })
     try {
       const result = await window.srtStudio.segment({ words, segmentation })
-      setTranscription((current) => {
-        if (current.status !== 'success' || current.words !== words) return current
+      setCaptionsData((current) => {
+        if (!current || current.words !== words) return current
         return {
           ...current,
-          message: resultMessage(result.captions.length, words.length, summary),
           captions: result.captions,
           segmentation: result.segmentation,
           captionsEdited: false
@@ -493,7 +604,7 @@ function App() {
       setSegmentState({ status: 'idle', message: '' })
       setExportState({
         status: 'idle',
-        message: 'Legendas regeradas sem retranscrever. Escolha onde salvar o SRT.'
+        message: 'Legendas regeradas sem sincronizar de novo. Escolha onde salvar o SRT.'
       })
     } catch (error) {
       setSegmentState({
@@ -504,6 +615,10 @@ function App() {
   }
 
   async function cancelTranscription() {
+    setCaptionJob((current) => {
+      if (current.status !== 'loading') return current
+      return { ...current, cancelling: true, message: 'Cancelando sincronização…' }
+    })
     setTranscription((current) => {
       if (current.status !== 'loading') return current
       return {
@@ -530,13 +645,13 @@ function App() {
   }
 
   async function exportSrt() {
-    if (!filePath || transcription.status !== 'success') return
+    if (!filePath || !captionsData) return
 
     setExportState({ status: 'loading', message: 'Validando e preparando o SRT…' })
     try {
       const result = await window.srtStudio.exportSrt({
         sourceFilePath: filePath,
-        captions: transcription.captions
+        captions: captionsData.captions
       })
       if (result.canceled) {
         setExportState({ status: 'idle', message: 'Exportação cancelada. Nenhum arquivo foi alterado.' })
@@ -556,8 +671,8 @@ function App() {
   }
 
   function replaceCaptions(updater: (captions: Caption[]) => Caption[]) {
-    setTranscription((current) => {
-      if (current.status !== 'success') return current
+    setCaptionsData((current) => {
+      if (!current) return current
       const captions = updater(current.captions)
       return { ...current, captions, captionsEdited: true }
     })
@@ -632,6 +747,13 @@ function App() {
       })
     })
 
+    const unsubscribeCaptionProgress = window.srtStudio.onCaptionProgress(({ stage, progress }) => {
+      setCaptionJob((current) => {
+        if (current.status !== 'loading' || current.cancelling) return current
+        return { ...current, stage, progress, message: progressMessage(stage, progress) }
+      })
+    })
+
     const preventNativeFileOpen = (event: DragEvent) => {
       if (event.dataTransfer?.types.includes('Files')) event.preventDefault()
     }
@@ -639,6 +761,7 @@ function App() {
     window.addEventListener('drop', preventNativeFileOpen)
     return () => {
       unsubscribeProgress()
+      unsubscribeCaptionProgress()
       window.removeEventListener('dragover', preventNativeFileOpen)
       window.removeEventListener('drop', preventNativeFileOpen)
     }
@@ -660,20 +783,28 @@ function App() {
     }
   }, [openHelp])
 
-  const hasCaptions = transcription.status === 'success'
+  const hasText = transcription.status === 'success'
+  const hasCaptions = captionsData !== null
+  const captionsReady = hasCaptions && !textChanged
   const steps = [
     { label: 'Arquivo', state: filePath ? 'done' : 'current', hint: filePath ? 'ok' : '' },
     {
-      label: 'Transcrição',
-      state: hasCaptions ? 'done' : filePath ? 'current' : 'pending',
-      hint: isTranscribing ? '…' : hasCaptions ? 'ok' : ''
+      label: 'Texto',
+      state: hasText ? 'done' : filePath ? 'current' : 'pending',
+      hint: isTranscribing ? '…' : hasText ? 'ok' : ''
     },
-    { label: 'Legendas', state: hasCaptions ? 'current' : 'pending', hint: '' }
+    {
+      label: 'Legendas',
+      state: captionsReady ? 'done' : hasText ? 'current' : 'pending',
+      hint: isCaptioning ? '…' : captionsReady ? 'ok' : ''
+    }
   ] as const
   const topbarTitle = filePath ? selectedName : 'Nova transcrição'
-  const topbarSubtitle = transcription.status === 'success' || transcription.status === 'loading'
-    ? transcription.message
-    : filePath || 'Áudio ou vídeo local · o arquivo original nunca é modificado'
+  const topbarSubtitle = captionsData && view === 'captions' && transcription.status === 'success'
+    ? resultMessage(captionsData.captions.length, captionsData.words.length, transcription.summary)
+    : transcription.status === 'success' || transcription.status === 'loading'
+      ? transcription.message
+      : filePath || 'Áudio ou vídeo local · o arquivo original nunca é modificado'
 
   function renderHelp(topic: HelpTopic, label: string, text: string) {
     return (
@@ -710,7 +841,7 @@ function App() {
         aria-label={label}
         aria-checked={checked}
         onClick={onToggle}
-        disabled={isTranscribing}
+        disabled={isBusy}
       >
         <span aria-hidden="true" />
       </button>
@@ -743,7 +874,7 @@ function App() {
             <span>{runtime.message}</span>
           </div>
           <span className="engine-version">{health.message}</span>
-          <button className="btn ghost small" onClick={checkRuntime} disabled={isTranscribing}>Reverificar runtime</button>
+          <button className="btn ghost small" onClick={checkRuntime} disabled={isBusy}>Reverificar runtime</button>
           <span className="signature">Guilherme Estevão Editor</span>
         </div>
       </aside>
@@ -768,40 +899,52 @@ function App() {
             <p>{topbarSubtitle}</p>
           </div>
           <div className="topbar-actions">
-            {segmentationChanged && (
-              <button className="btn secondary" onClick={regenerateCaptions} disabled={isSegmenting}>
-                {isSegmenting ? 'Gerando legendas…' : 'Regerar legendas'}
-              </button>
-            )}
-            {transcription.status === 'loading' && (
-              <button className="btn secondary" onClick={cancelTranscription} disabled={transcription.cancelling}>
-                {transcription.cancelling ? 'Cancelando…' : 'Cancelar'}
+            {(transcription.status === 'loading' || captionJob.status === 'loading') && (
+              <button
+                className="btn secondary"
+                onClick={cancelTranscription}
+                disabled={transcription.status === 'loading' ? transcription.cancelling : captionJob.status === 'loading' && captionJob.cancelling}
+              >
+                {(transcription.status === 'loading' && transcription.cancelling) ||
+                (captionJob.status === 'loading' && captionJob.cancelling)
+                  ? 'Cancelando…'
+                  : 'Cancelar'}
               </button>
             )}
             {filePath && (
               <button
-                className={`btn ${hasCaptions ? 'secondary' : ''}`}
+                className={`btn ${hasText ? 'secondary' : ''}`}
                 onClick={runTranscription}
-                disabled={isTranscribing || isSegmenting || runtime.status !== 'ready'}
+                disabled={isBusy || runtime.status !== 'ready'}
               >
                 {isTranscribing
                   ? 'Transcrevendo…'
-                  : hasCaptions
+                  : hasText
                     ? 'Transcrever novamente'
                     : transcription.status === 'error'
                       ? 'Tentar novamente'
                       : 'Transcrever'}
               </button>
             )}
+            {hasText && (!hasCaptions || textChanged) && (
+              <button className="btn" onClick={generateCaptions} disabled={isBusy}>
+                {isCaptioning ? 'Gerando legendas…' : hasCaptions ? 'Gerar legendas novamente' : 'Gerar legendas'}
+              </button>
+            )}
+            {captionsReady && segmentationChanged && (
+              <button className="btn secondary" onClick={regenerateCaptions} disabled={isBusy}>
+                {isSegmenting ? 'Gerando legendas…' : 'Regerar legendas'}
+              </button>
+            )}
             {hasCaptions && (
               <button
-                className="btn"
+                className={`btn ${textChanged ? 'secondary' : ''}`}
                 onClick={exportSrt}
                 disabled={
                   exportState.status === 'loading' ||
-                  isSegmenting ||
-                  transcription.captions.length === 0 ||
-                  transcription.captions.some((caption) => !caption.text.trim())
+                  isBusy ||
+                  captionsData.captions.length === 0 ||
+                  captionsData.captions.some((caption) => !caption.text.trim())
                 }
               >
                 {exportState.status === 'loading' ? 'Exportando…' : 'Exportar SRT'}
@@ -820,8 +963,8 @@ function App() {
                   </svg>
                 </span>
                 <h2>Arraste um áudio ou vídeo</h2>
-                <p>Transcrição local com faster-whisper e legendas prontas para o Premiere. Nada sai do seu computador.</p>
-                <button className="btn" onClick={selectMedia} disabled={isTranscribing}>Selecionar arquivo</button>
+                <p>Transcrição local com faster-whisper e legendas sincronizadas pelo áudio, prontas para o Premiere. Nada sai do seu computador.</p>
+                <button className="btn" onClick={selectMedia} disabled={isBusy}>Selecionar arquivo</button>
                 <small>MP3 · WAV · M4A · FLAC · MP4 · MOV · MKV · WEBM</small>
                 {sourceMessage && <span className="source-error">{sourceMessage}</span>}
               </div>
@@ -839,7 +982,7 @@ function App() {
                   <small>{filePath}</small>
                   {sourceMessage && <span className="source-error">{sourceMessage}</span>}
                 </div>
-                <button className="btn secondary small" onClick={selectMedia} disabled={isTranscribing}>Trocar arquivo</button>
+                <button className="btn secondary small" onClick={selectMedia} disabled={isBusy}>Trocar arquivo</button>
               </div>
             )}
 
@@ -847,29 +990,38 @@ function App() {
               <div className="panel empty-state">
                 <h2>Pronto para transcrever</h2>
                 <p>{transcription.message}</p>
-                <p>Ajuste modelo, idioma e legendas no painel à direita e clique em <strong>Transcrever</strong>.</p>
+                <p>
+                  Primeiro o SRTX transcreve o <strong>texto</strong>. Depois de revisar, você clica em{' '}
+                  <strong>Gerar legendas</strong> e cada palavra é sincronizada com o áudio.
+                </p>
               </div>
             )}
 
-            {transcription.status === 'loading' && (
-              <div className="panel progress-card" aria-live="polite">
-                <div className="progress-meta">
-                  <strong>{transcription.message}</strong>
-                  {transcription.progress !== null && <span>{Math.round(transcription.progress * 100)}%</span>}
+            {(transcription.status === 'loading' || captionJob.status === 'loading') && (() => {
+              const job = transcription.status === 'loading' ? transcription : captionJob.status === 'loading' ? captionJob : null
+              if (!job) return null
+              return (
+                <div className="panel progress-card" aria-live="polite">
+                  <div className="progress-meta">
+                    <strong>{job.message}</strong>
+                    {job.progress !== null && <span>{Math.round(job.progress * 100)}%</span>}
+                  </div>
+                  <div className={`progress-track ${job.progress === null ? 'indeterminate' : ''}`}>
+                    <div
+                      className="progress-fill"
+                      style={job.progress === null ? undefined : { width: `${Math.round(job.progress * 100)}%` }}
+                    />
+                  </div>
+                  <small>
+                    {job.stage === 'loading_aligner'
+                      ? 'Na primeira vez o modelo de sincronização (~350 MB) é baixado; depois funciona offline.'
+                      : job.progress === null
+                        ? 'O carregamento do modelo não possui percentual artificial; o progresso numérico começa com o processamento.'
+                        : 'Percentual calculado pela posição já processada no áudio.'}
+                  </small>
                 </div>
-                <div className={`progress-track ${transcription.progress === null ? 'indeterminate' : ''}`}>
-                  <div
-                    className="progress-fill"
-                    style={transcription.progress === null ? undefined : { width: `${Math.round(transcription.progress * 100)}%` }}
-                  />
-                </div>
-                <small>
-                  {transcription.progress === null
-                    ? 'O carregamento do modelo não possui percentual artificial; o progresso numérico começa com a inferência.'
-                    : 'Percentual calculado pela posição temporal já processada no áudio.'}
-                </small>
-              </div>
-            )}
+              )
+            })()}
 
             {transcription.status === 'error' && (
               <div className="notice error" role="alert">
@@ -879,97 +1031,155 @@ function App() {
               </div>
             )}
 
-            {transcription.status === 'success' && (
+            {captionJob.status === 'error' && (
+              <div className="notice error" role="alert">
+                <strong>As legendas não foram geradas.</strong>
+                <small>{captionJob.message}</small>
+                <small>O texto revisado foi preservado. Tente de novo com “Gerar legendas”.</small>
+              </div>
+            )}
+
+            {hasText && (
               <>
-                <div className={`notice ${exportState.status === 'success' ? 'success' : exportState.status === 'error' ? 'error' : ''}`}>
-                  <strong>{exportState.message}</strong>
-                  {exportState.status === 'success' && <small>{exportState.path}</small>}
-                </div>
+                {hasCaptions && (
+                  <div className="segmented view-switch" role="tablist" aria-label="Visualização">
+                    <button type="button" role="tab" aria-pressed={view === 'text'} aria-selected={view === 'text'} onClick={() => setView('text')}>
+                      Texto
+                    </button>
+                    <button type="button" role="tab" aria-pressed={view === 'captions'} aria-selected={view === 'captions'} onClick={() => setView('captions')}>
+                      Legendas · {captionsData.captions.length}
+                    </button>
+                  </div>
+                )}
 
-                {segmentationChanged && segmentState.status !== 'error' && (
+                {textChanged && (
                   <div className="notice accent" aria-live="polite">
-                    <strong>
-                      {isSegmenting
-                        ? segmentState.message
-                        : 'As opções de legenda mudaram. Use “Regerar legendas” para aplicá-las sem transcrever de novo.'}
-                    </strong>
-                    {transcription.captionsEdited && !isSegmenting && (
-                      <small>Regerar descarta as edições manuais feitas abaixo; o app pede confirmação.</small>
-                    )}
+                    <strong>O texto mudou depois que as legendas foram geradas.</strong>
+                    <small>Use “Gerar legendas novamente” para sincronizar o texto novo com o áudio.</small>
                   </div>
                 )}
 
-                {segmentState.status === 'error' && segmentationChanged && (
-                  <div className="notice error" role="alert">
-                    <strong>As legendas não foram regeradas.</strong>
-                    <small>{segmentState.message}</small>
-                  </div>
-                )}
-
-                <div className="editor-heading">
-                  <h2>Legendas · {transcription.captions.length}</h2>
-                  <small>Enter divide · vazio + Backspace remove · clique no texto para editar</small>
-                </div>
-
-                <div className="panel caption-list">
-                  {transcription.captions.map((caption, index) => {
-                    const count = captionCharacterCount(caption.text)
-                    const over = count > 17 && /\s/.test(caption.text.trim())
-                    return (
-                      <div className="caption-row" key={`${caption.start}-${index}`}>
-                        <span className="caption-time">{formatTime(caption.start)} → {formatTime(caption.end)}</span>
-                        <textarea
-                          ref={(element) => {
-                            captionInputRefs.current[index] = element
-                            fitTextarea(element)
-                          }}
-                          value={caption.text}
-                          rows={1}
-                          spellCheck={false}
-                          aria-label={`Editar caption ${index + 1}`}
-                          onChange={(event) => {
-                            fitTextarea(event.target)
-                            updateCaptionText(index, event.target.value)
-                          }}
-                          onKeyDown={(event) => handleCaptionKeyDown(index, event)}
-                        />
-                        <div className="caption-side">
-                          <div className="caption-actions">
-                            <button
-                              className="btn ghost small"
-                              type="button"
-                              title="Dividir no meio do texto"
-                              onClick={() => splitCaptionAt(index, Math.floor(caption.text.length / 2))}
-                            >
-                              Dividir
-                            </button>
-                            <button
-                              className="btn ghost small danger"
-                              type="button"
-                              title="Excluir este segmento"
-                              onClick={() => removeCaption(index)}
-                            >
-                              Excluir
-                            </button>
-                          </div>
-                          <span className={`char-count ${over ? 'over' : ''}`} title="Caracteres nesta legenda">{count}</span>
+                {(view === 'text' || !hasCaptions) && (
+                  <>
+                    <div className="editor-heading">
+                      <h2>Texto · {countWords(textSegments)} palavras</h2>
+                      <small>Corrija à vontade: os tempos vêm do áudio quando você gerar as legendas</small>
+                    </div>
+                    <div className="panel caption-list text-list">
+                      {textSegments.map((segment, index) => (
+                        <div className="caption-row text-row" key={`${segment.start}-${index}`}>
+                          <span className="caption-time">{formatTime(segment.start)}</span>
+                          <textarea
+                            ref={(element) => fitTextarea(element)}
+                            value={segment.text}
+                            rows={1}
+                            spellCheck={false}
+                            disabled={isCaptioning}
+                            aria-label={`Editar parágrafo ${index + 1}`}
+                            onChange={(event) => {
+                              fitTextarea(event.target)
+                              updateSegmentText(index, event.target.value)
+                            }}
+                          />
                         </div>
-                      </div>
-                    )
-                  })}
-                </div>
+                      ))}
+                    </div>
+                  </>
+                )}
 
-                <details className="panel raw-words">
-                  <summary>Ver amostra de palavras e timestamps brutos</summary>
-                  <div className="word-preview">
-                    {transcription.words.slice(0, 24).map((word, index) => (
-                      <span className="word-chip" key={`${word.start}-${index}`}>
-                        <strong>{word.text}</strong>
-                        <small>{word.start.toFixed(2)} → {word.end.toFixed(2)}</small>
-                      </span>
-                    ))}
-                  </div>
-                </details>
+                {view === 'captions' && captionsData && (
+                  <>
+                    <div className={`notice ${exportState.status === 'success' ? 'success' : exportState.status === 'error' ? 'error' : ''}`}>
+                      <strong>{exportState.message}</strong>
+                      {exportState.status === 'success' && <small>{exportState.path}</small>}
+                    </div>
+
+                    {segmentationChanged && !textChanged && segmentState.status !== 'error' && (
+                      <div className="notice accent" aria-live="polite">
+                        <strong>
+                          {isSegmenting
+                            ? segmentState.message
+                            : 'As opções de legenda mudaram. Use “Regerar legendas” para aplicá-las sem sincronizar de novo.'}
+                        </strong>
+                        {captionsData.captionsEdited && !isSegmenting && (
+                          <small>Regerar descarta as edições manuais feitas abaixo; o app pede confirmação.</small>
+                        )}
+                      </div>
+                    )}
+
+                    {segmentState.status === 'error' && segmentationChanged && (
+                      <div className="notice error" role="alert">
+                        <strong>As legendas não foram regeradas.</strong>
+                        <small>{segmentState.message}</small>
+                      </div>
+                    )}
+
+                    <div className="editor-heading">
+                      <h2>Legendas · {captionsData.captions.length}</h2>
+                      <small>Enter divide · vazio + Backspace remove · clique no texto para editar</small>
+                    </div>
+
+                    <div className="panel caption-list">
+                      {captionsData.captions.map((caption, index) => {
+                        const count = captionCharacterCount(caption.text)
+                        const over = count > 17 && /\s/.test(caption.text.trim())
+                        return (
+                          <div className="caption-row" key={`${caption.start}-${index}`}>
+                            <span className="caption-time">{formatTime(caption.start)} → {formatTime(caption.end)}</span>
+                            <textarea
+                              ref={(element) => {
+                                captionInputRefs.current[index] = element
+                                fitTextarea(element)
+                              }}
+                              value={caption.text}
+                              rows={1}
+                              spellCheck={false}
+                              aria-label={`Editar caption ${index + 1}`}
+                              onChange={(event) => {
+                                fitTextarea(event.target)
+                                updateCaptionText(index, event.target.value)
+                              }}
+                              onKeyDown={(event) => handleCaptionKeyDown(index, event)}
+                            />
+                            <div className="caption-side">
+                              <div className="caption-actions">
+                                <button
+                                  className="btn ghost small"
+                                  type="button"
+                                  title="Dividir no meio do texto"
+                                  onClick={() => splitCaptionAt(index, Math.floor(caption.text.length / 2))}
+                                >
+                                  Dividir
+                                </button>
+                                <button
+                                  className="btn ghost small danger"
+                                  type="button"
+                                  title="Excluir este segmento"
+                                  onClick={() => removeCaption(index)}
+                                >
+                                  Excluir
+                                </button>
+                              </div>
+                              <span className={`char-count ${over ? 'over' : ''}`} title="Caracteres nesta legenda">{count}</span>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    <details className="panel raw-words">
+                      <summary>Ver amostra de palavras sincronizadas</summary>
+                      <div className="word-preview">
+                        {captionsData.words.slice(0, 24).map((word, index) => (
+                          <span className="word-chip" key={`${word.start}-${index}`}>
+                            <strong>{word.text}</strong>
+                            <small>{word.start.toFixed(2)} → {word.end.toFixed(2)}</small>
+                          </span>
+                        ))}
+                      </div>
+                    </details>
+                  </>
+                )}
               </>
             )}
           </section>
@@ -978,7 +1188,7 @@ function App() {
             <section className="inspector-section">
               <h3>Preset</h3>
               <label className="field">
-                <select value={activePresetId} onChange={(event) => applyPreset(event.target.value)} disabled={isTranscribing} aria-label="Preset">
+                <select value={activePresetId} onChange={(event) => applyPreset(event.target.value)} disabled={isBusy} aria-label="Preset">
                   <option value="custom">Configuração personalizada</option>
                   <optgroup label="Padrões">
                     {BUILTIN_PRESETS.map((preset) => (
@@ -995,9 +1205,9 @@ function App() {
                 </select>
               </label>
               <div className="preset-actions">
-                <button className="btn ghost small" onClick={saveCurrentPreset} disabled={isTranscribing}>Salvar atual</button>
+                <button className="btn ghost small" onClick={saveCurrentPreset} disabled={isBusy}>Salvar atual</button>
                 {activeCustomPreset && (
-                  <button className="btn ghost small danger" onClick={deleteActivePreset} disabled={isTranscribing}>Excluir preset</button>
+                  <button className="btn ghost small danger" onClick={deleteActivePreset} disabled={isBusy}>Excluir preset</button>
                 )}
               </div>
               {presetMessage && <small className="preset-message">{presetMessage}</small>}
@@ -1007,7 +1217,7 @@ function App() {
               <h3>Transcrição</h3>
               <label className="field">
                 Modelo Whisper
-                <select value={model} onChange={(event) => setModel(event.target.value)} disabled={isTranscribing}>
+                <select value={model} onChange={(event) => setModel(event.target.value)} disabled={isBusy}>
                   <option value="large-v3">Large v3 · precisão</option>
                   <option value="medium">Medium · equilíbrio</option>
                   <option value="small">Small · mais rápido</option>
@@ -1015,7 +1225,7 @@ function App() {
               </label>
               <label className="field">
                 Idioma
-                <select value={language} onChange={(event) => setLanguage(event.target.value)} disabled={isTranscribing}>
+                <select value={language} onChange={(event) => setLanguage(event.target.value)} disabled={isBusy}>
                   <option value="es">Español / ES-PY</option>
                   <option value="pt">Português</option>
                   <option value="en">English</option>
@@ -1035,7 +1245,7 @@ function App() {
                       key={value}
                       aria-pressed={targetWords === value}
                       onClick={() => setTargetWords(value)}
-                      disabled={isTranscribing}
+                      disabled={isBusy}
                     >
                       {value}
                     </button>

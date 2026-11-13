@@ -6,6 +6,13 @@ O SRT Studio já possui fluxo funcional de ponta a ponta: mídia local → `fast
 
 Repositório: `GuilhermeStv-dev/srt-studio`. A `main` é o estado estável; mudanças devem usar branch + PR.
 
+Checkpoint de 2026-11-13 (D-019):
+
+- transcrição e legendas viraram etapas separadas: `transcribe-text` (só texto) e `caption` (alinhamento forçado + segmentação);
+- tempos por palavra agora vêm de `engine/alignment/` (wav2vec2 CTC no onnxruntime), não do Whisper;
+- o modelo de sincronização é baixado no primeiro "Gerar legendas" (~350 MB para ES) e fica no cache do Hugging Face;
+- próximo passo: o usuário validar no Premiere um vídeo real que antes precisava de ajuste manual; se ainda houver deriva, coletar o trecho e medir palavra a palavra.
+
 Checkpoint de 2026-08-26:
 
 - erro real `Duração inválida em '¿Tenés': 59.44 -> 59.44` tratado como timestamp colapsado;

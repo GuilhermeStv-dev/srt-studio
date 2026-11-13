@@ -14,6 +14,7 @@ from engine.transcription import (
     TranscriptionUnavailableError,
     detect_runtime,
     transcribe_file,
+    transcribe_text_file,
 )
 
 _PROGRESS_PREFIX = "SRT_PROGRESS "
@@ -95,6 +96,95 @@ def transcribe(args: argparse.Namespace) -> int:
         {
             "ok": True,
             **result.to_dict(),
+            "captions": [cue.to_dict() for cue in cues],
+            "segmentation": options.to_dict(),
+        }
+    )
+    return 0
+
+
+def transcribe_text_command(args: argparse.Namespace) -> int:
+    """Etapa 1 de D-019: só o texto, sem tempos por palavra nem legendas."""
+    progress_callback = emit_progress if args.progress_events else None
+    try:
+        result = transcribe_text_file(
+            args.input,
+            model_name=args.model,
+            language=args.language,
+            requested_device=args.device,
+            vad_filter=not args.no_vad,
+            progress_callback=progress_callback,
+        )
+    except (FileNotFoundError, TranscriptionError, TranscriptionUnavailableError, ValueError) as exc:
+        print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False), file=sys.stderr)
+        return 4
+    if args.progress_events:
+        emit_progress("completed", 1.0)
+    emit({"ok": True, **result.to_dict()})
+    return 0
+
+
+def _parse_text_segments(items: object) -> list:
+    from engine.alignment import TextSegment
+
+    if not isinstance(items, list) or not items:
+        raise ValueError("Payload precisa conter uma lista não vazia de segments")
+    segments = []
+    for index, item in enumerate(items, start=1):
+        if not isinstance(item, dict):
+            raise ValueError(f"Parágrafo {index} tem formato inválido")
+        try:
+            text = str(item["text"])
+            start = float(item["start"])
+            end = float(item["end"])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError(f"Parágrafo {index} não possui text/start/end válidos") from exc
+        if start < 0 or end < start:
+            raise ValueError(f"Parágrafo {index} tem janela de tempo inválida")
+        segments.append(TextSegment(text=text, start=start, end=end))
+    if not any(segment.text.split() for segment in segments):
+        raise ValueError("O texto está vazio; não há o que legendar")
+    return segments
+
+
+def caption_command(args: argparse.Namespace) -> int:
+    """Etapa 2 de D-019: alinha o texto revisado ao áudio e gera as legendas."""
+    progress_callback = emit_progress if args.progress_events else None
+    try:
+        from engine.alignment import AlignmentError, align_segments, load_alignment_model, load_audio
+    except ImportError as exc:
+        print(json.dumps({"ok": False, "error": f"Sincronização indisponível: {exc}"}, ensure_ascii=False), file=sys.stderr)
+        return 7
+
+    try:
+        raw = sys.stdin.read()
+        try:
+            payload = json.loads(raw) if raw.strip() else None
+        except json.JSONDecodeError as exc:
+            raise ValueError("Payload de texto não é JSON válido") from exc
+        if not isinstance(payload, dict):
+            raise ValueError("Payload precisa ser um objeto com segments e segmentation")
+        segments = _parse_text_segments(payload.get("segments"))
+        options = SegmentationOptions.from_dict(payload.get("segmentation"))
+
+        model = load_alignment_model(args.language, progress_callback)
+        if progress_callback is not None:
+            progress_callback("aligning", 0.0)
+        audio = load_audio(args.input)
+        words = align_segments(audio, segments, model, progress_callback)
+        if not words:
+            raise ValueError("Nenhuma palavra pôde ser sincronizada")
+        cues = build_captions(words, options)
+    except (FileNotFoundError, AlignmentError, ValueError, RuntimeError) as exc:
+        print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False), file=sys.stderr)
+        return 7
+
+    if args.progress_events:
+        emit_progress("completed", 1.0)
+    emit(
+        {
+            "ok": True,
+            "words": [word.to_dict() for word in words],
             "captions": [cue.to_dict() for cue in cues],
             "segmentation": options.to_dict(),
         }
@@ -219,6 +309,25 @@ def build_parser() -> argparse.ArgumentParser:
         help="Exibe valores monetários redondos no formato N mil",
     )
 
+    text_parser = sub.add_parser(
+        "transcribe-text",
+        help="Transcreve um arquivo e devolve só o texto em parágrafos (sem tempos por palavra)",
+    )
+    text_parser.add_argument("input")
+    text_parser.add_argument("--model", default="large-v3")
+    text_parser.add_argument("--language", default=None)
+    text_parser.add_argument("--device", choices=["auto", "cuda", "cpu"], default="auto")
+    text_parser.add_argument("--no-vad", action="store_true")
+    text_parser.add_argument("--progress-events", action="store_true")
+
+    caption_parser = sub.add_parser(
+        "caption",
+        help="Sincroniza o texto revisado (stdin) com o áudio por alinhamento forçado e gera captions",
+    )
+    caption_parser.add_argument("input")
+    caption_parser.add_argument("--language", required=True)
+    caption_parser.add_argument("--progress-events", action="store_true")
+
     sub.add_parser(
         "segment",
         help="Gera captions a partir de palavras revisadas recebidas via stdin (sem retranscrever)",
@@ -246,6 +355,10 @@ def main() -> int:
         return runtime(args.device)
     if args.command == "transcribe":
         return transcribe(args)
+    if args.command == "transcribe-text":
+        return transcribe_text_command(args)
+    if args.command == "caption":
+        return caption_command(args)
     if args.command == "segment":
         return segment_command(args)
     if args.command == "export-srt":

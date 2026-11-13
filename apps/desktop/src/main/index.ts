@@ -159,7 +159,8 @@ function runEngineJson(
 
 function runTranscriptionJson(
   args: string[],
-  onProgress: (payload: { stage: string; progress: number | null }) => void
+  onProgress: (payload: { stage: string; progress: number | null }) => void,
+  stdinPayload?: unknown
 ): Promise<unknown> {
   if (activeTranscription) {
     return Promise.reject(new Error('Já existe uma transcrição em andamento'))
@@ -215,6 +216,11 @@ function runTranscriptionJson(
     child.on('error', (error) => {
       finish(() => reject(error))
     })
+
+    if (stdinPayload !== undefined) {
+      child.stdin.setDefaultEncoding('utf8')
+      child.stdin.end(JSON.stringify(stdinPayload))
+    }
 
     child.on('close', (code) => {
       if (stderrBuffer) {
@@ -340,6 +346,67 @@ app.whenReady().then(() => {
             event.sender.send('engine:transcription-progress', payload)
           }
         })
+        clearTaskbarProgress(sourceWindow)
+        return result
+      } catch (error) {
+        clearTaskbarProgress(sourceWindow)
+        throw error
+      }
+    }
+  )
+
+  ipcMain.handle(
+    'engine:transcribe-text',
+    async (event, input: { filePath: string; model: string; language: string | null }) => {
+      const args = ['transcribe-text', input.filePath, '--model', input.model]
+      if (input.language) args.push('--language', input.language)
+
+      const sourceWindow = BrowserWindow.fromWebContents(event.sender)
+      try {
+        const result = await runTranscriptionJson(args, (payload) => {
+          setTranscriptionTaskbarProgress(sourceWindow, payload)
+          if (!event.sender.isDestroyed()) {
+            event.sender.send('engine:transcription-progress', payload)
+          }
+        })
+        clearTaskbarProgress(sourceWindow)
+        return result
+      } catch (error) {
+        clearTaskbarProgress(sourceWindow)
+        throw error
+      }
+    }
+  )
+
+  ipcMain.handle(
+    'engine:caption',
+    async (event, input: {
+      filePath: string
+      language: string
+      segments: Array<{ text: string; start: number; end: number }>
+      segmentation: {
+        target_words: number
+        ignore_prepositions: boolean
+        preserve_commas_periods: boolean
+        monetary_thousands: boolean
+      }
+    }) => {
+      if (!Array.isArray(input.segments) || input.segments.length === 0) {
+        throw new Error('É preciso transcrever antes de gerar legendas')
+      }
+
+      const sourceWindow = BrowserWindow.fromWebContents(event.sender)
+      try {
+        const result = await runTranscriptionJson(
+          ['caption', input.filePath, '--language', input.language],
+          (payload) => {
+            setTranscriptionTaskbarProgress(sourceWindow, payload)
+            if (!event.sender.isDestroyed()) {
+              event.sender.send('engine:caption-progress', payload)
+            }
+          },
+          { segments: input.segments, segmentation: input.segmentation }
+        )
         clearTaskbarProgress(sourceWindow)
         return result
       } catch (error) {
