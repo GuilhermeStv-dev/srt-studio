@@ -10,6 +10,9 @@ class WordToken:
     end: float
     probability: float | None = None
     kind: str | None = None
+    # Fronteira obrigatória de legenda depois desta palavra: fim de parágrafo /
+    # troca de fala marcada na etapa Texto (D-020).
+    break_after: bool = False
 
     def to_dict(self) -> dict:
         return asdict(self)

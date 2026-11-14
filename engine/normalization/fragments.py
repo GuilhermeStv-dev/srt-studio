@@ -53,6 +53,7 @@ def merge_fragmented_currency_numbers(words: Sequence[WordToken]) -> tuple[WordT
                         start=words[index].start,
                         end=max(word.end for word in words[index : fragment_end + 1]),
                         probability=min(probability_values) if probability_values else None,
+                        break_after=words[fragment_end].break_after,
                     )
                 )
                 index = fragment_end + 1

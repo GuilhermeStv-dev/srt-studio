@@ -268,3 +268,21 @@ mídia → faster-whisper → WordToken[] → CaptionCue[]
 Idioma detectado fora dessa lista gera erro explícito na etapa 2; a etapa 1 continua funcionando.
 
 **Compatibilidade:** `transcribe` (texto + legendas em uma chamada, com tempos do Whisper) e `segment` continuam disponíveis. `segment` é usado para regerar legendas com outras opções sem sincronizar de novo.
+
+## D-020 — Troca de fala, sincronização robusta e interface mínima
+
+**Status:** aprovada pelo usuário em 14/11/2026, a partir do retorno do primeiro uso real de D-019: legenda ~80% sincronizada; "¿verdad? Sí" (apresentadora + entrevistado quase juntos) saía numa legenda só; pedido de interface mais minimalista.
+
+**Troca de fala / fim de frase (segmentação):**
+- uma caption nunca contém o fim de uma frase e o início da seguinte: palavra terminada em `?`, `!`, `…` ou `.` (exceto abreviações como `Sr.`, `Dr.`, `etc.`; separadores numéricos como `50.000` não contam) é fronteira obrigatória;
+- `WordToken.break_after` marca fronteira obrigatória. O alinhador marca a última palavra de cada parágrafo (o Whisper costuma quebrar parágrafo na troca de falante); reparo de números e normalização monetária preservam a marca;
+- na etapa Texto, **Enter** divide o parágrafo no cursor (força a quebra onde o Whisper juntou dois falantes) e **Backspace** no início junta com o anterior;
+- todas as captions continuam com a mesma aparência; não há identificação de falante. Diarização automática fica para depois, se ainda houver casos sem pontuação.
+
+**Sincronização mais robusta (alinhamento):**
+- a janela do Whisper sem tempo por palavra pode errar o parágrafo em mais de 1 s. A margem subiu de 0,6 s para 1,5 s, com estados "lixo" nas pontas do Viterbi que absorvem a fala vizinha (penalidade 2,0);
+- medição com as janelas do Whisper deslocadas aleatoriamente até ±1,5 s: pior erro de início de frase caiu de 589 ms para 57 ms; frases com erro > 100 ms caíram de 11% para 0%.
+
+**Exibição das captions:** o fim de palavra medido pelo alinhamento é curto (33% das palavras < 120 ms), o que fazia a legenda piscar. Se a próxima caption começa em até 0,6 s, a atual fica na tela até ela; senão, fica mais 0,3 s depois do fim da palavra. Nunca há overlap (D-007 continua valendo).
+
+**Interface mínima (complementa D-018):** sem caminho do arquivo, versão do engine nem status de runtime (só aparece se houver erro); sem cartão de arquivo duplicado ("Trocar" ao lado do nome); sem amostra de palavras brutas; sem linha estática da trava de 17 caracteres; avisos só quando há novidade (exportação concluída/erro, texto alterado); subtítulo da barra superior reduzido a idioma e duração.

@@ -20,7 +20,11 @@ from engine.alignment.ctc import align_words, tokenize_words
 from engine.models import WordToken
 
 SAMPLE_RATE = 16000
-WINDOW_PADDING = 0.6
+# A janela do Whisper sem tempo por palavra pode errar o parágrafo em mais de 1 s.
+# Margem larga + estados "lixo" nas pontas: a fala vizinha é absorvida sem empurrar
+# as palavras do parágrafo para o lugar errado (D-020).
+WINDOW_PADDING = 1.5
+GARBAGE_PENALTY = 2.0
 _MIN_WORD_DURATION = 0.04
 
 ProgressCallback = Callable[[str, float | None], None]
@@ -187,7 +191,13 @@ def align_segments(
             frame_duration = (len(chunk) / SAMPLE_RATE) / max(1, log_probs.shape[0])
             tokenized = tokenize_words(words, model.vocab)
             try:
-                aligned = align_words(log_probs, tokenized, blank=model.blank, delimiter=model.delimiter)
+                aligned = align_words(
+                    log_probs,
+                    tokenized,
+                    blank=model.blank,
+                    delimiter=model.delimiter,
+                    garbage_penalty=GARBAGE_PENALTY,
+                )
             except ValueError:
                 aligned = []
             for span in aligned:
@@ -198,7 +208,8 @@ def align_segments(
                 )
 
         timed = _fill_unaligned(words, spans, window_start, window_end)
-        for text, (start, end, score) in zip(words, timed):
+        last_index = len(words) - 1
+        for word_index, (text, (start, end, score)) in enumerate(zip(words, timed)):
             start = max(start, previous_end)
             end = max(end, start + _MIN_WORD_DURATION)
             start_ms = round(start * 1000)
@@ -209,6 +220,8 @@ def align_segments(
                     start=start_ms / 1000,
                     end=end_ms / 1000,
                     probability=None if score is None or not math.isfinite(score) else round(score, 4),
+                    # Fim de parágrafo = troca de fala provável: fronteira obrigatória de legenda.
+                    break_after=word_index == last_index,
                 )
             )
             previous_end = end_ms / 1000

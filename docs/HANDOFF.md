@@ -6,6 +6,13 @@ O SRT Studio já possui fluxo funcional de ponta a ponta: mídia local → `fast
 
 Repositório: `GuilhermeStv-dev/srt-studio`. A `main` é o estado estável; mudanças devem usar branch + PR.
 
+Checkpoint de 2026-11-14 (D-020):
+
+- primeiro uso real de D-019: ~80% sincronizado e falas coladas de pessoas diferentes numa legenda só;
+- corrigido com fronteira obrigatória em fim de frase/parágrafo, Enter/Backspace na etapa Texto, alinhamento com margem larga + estados "lixo", e permanência de exibição das captions;
+- interface enxugada (D-020);
+- próximo passo: o usuário reavaliar no Premiere o mesmo vídeo; se ainda houver deriva, coletar trecho + tempo e medir palavra a palavra. Se houver trocas de fala sem pontuação, avaliar detecção automática de troca de falante.
+
 Checkpoint de 2026-11-13 (D-019):
 
 - transcrição e legendas viraram etapas separadas: `transcribe-text` (só texto) e `caption` (alinhamento forçado + segmentação);

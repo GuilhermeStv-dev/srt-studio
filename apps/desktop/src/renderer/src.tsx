@@ -198,6 +198,14 @@ function formatTime(seconds: number): string {
   return `${String(minutes).padStart(2, '0')}:${rest.toFixed(2).padStart(5, '0')}`
 }
 
+function formatDuration(seconds: number): string {
+  const total = Math.max(0, Math.round(seconds))
+  const hours = Math.floor(total / 3600)
+  const minutes = Math.floor((total % 3600) / 60)
+  const rest = String(total % 60).padStart(2, '0')
+  return hours > 0 ? `${hours}:${String(minutes).padStart(2, '0')}:${rest}` : `${minutes}:${rest}`
+}
+
 function fitTextarea(element: HTMLTextAreaElement | null): void {
   if (!element) return
   element.style.height = 'auto'
@@ -245,6 +253,7 @@ function App() {
   const [view, setView] = useState<View>('text')
   const [openHelp, setOpenHelp] = useState<HelpTopic | null>(null)
   const captionInputRefs = useRef<Array<HTMLTextAreaElement | null>>([])
+  const textInputRefs = useRef<Array<HTMLTextAreaElement | null>>([])
 
   const selectedName = useMemo(() => fileName(filePath), [filePath])
   const isTranscribing = transcription.status === 'loading'
@@ -486,8 +495,7 @@ function App() {
         return
       }
 
-      const fallbackLabel = result.runtime_warning ? ' · fallback CUDA → CPU' : ''
-      const summary = `${result.language} · ${result.device.toUpperCase()}${fallbackLabel} · ${result.duration.toFixed(1)}s`
+      const summary = `${result.language.toUpperCase()} · ${formatDuration(result.duration)}`
       setSegmentState({ status: 'idle', message: '' })
       setTextSegments(result.segments)
       setTextVersion(0)
@@ -516,6 +524,64 @@ function App() {
       currentIndex === index ? { ...segment, text } : segment
     )))
     setTextVersion((current) => current + 1)
+  }
+
+  // Cada parágrafo vira fronteira obrigatória de legenda (D-020): Enter separa
+  // falas que o Whisper juntou; Backspace no início junta com o anterior.
+  function splitSegment(index: number, offset: number) {
+    const segment = textSegments[index]
+    if (!segment) return
+    const left = segment.text.slice(0, offset).trim()
+    const right = segment.text.slice(offset).trim()
+    if (!left || !right) return
+    setTextSegments((current) => [
+      ...current.slice(0, index),
+      { ...segment, text: left },
+      { ...segment, text: right },
+      ...current.slice(index + 1)
+    ])
+    setTextVersion((current) => current + 1)
+    window.setTimeout(() => {
+      const next = textInputRefs.current[index + 1]
+      next?.focus()
+      next?.setSelectionRange(0, 0)
+    }, 0)
+  }
+
+  function mergeWithPrevious(index: number) {
+    if (index === 0) return
+    const previous = textSegments[index - 1]
+    const segment = textSegments[index]
+    if (!previous || !segment) return
+    const joinAt = previous.text.trimEnd().length
+    setTextSegments((current) => [
+      ...current.slice(0, index - 1),
+      {
+        text: `${previous.text.trimEnd()} ${segment.text.trimStart()}`.trim(),
+        start: Math.min(previous.start, segment.start),
+        end: Math.max(previous.end, segment.end)
+      },
+      ...current.slice(index + 1)
+    ])
+    setTextVersion((current) => current + 1)
+    window.setTimeout(() => {
+      const target = textInputRefs.current[index - 1]
+      target?.focus()
+      target?.setSelectionRange(joinAt, joinAt)
+    }, 0)
+  }
+
+  function handleTextKeyDown(index: number, event: React.KeyboardEvent<HTMLTextAreaElement>) {
+    const target = event.currentTarget
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault()
+      splitSegment(index, target.selectionStart)
+      return
+    }
+    if (event.key === 'Backspace' && target.selectionStart === 0 && target.selectionEnd === 0 && index > 0) {
+      event.preventDefault()
+      mergeWithPrevious(index)
+    }
   }
 
   async function generateCaptions() {
@@ -660,7 +726,7 @@ function App() {
       setExportState({
         status: 'success',
         path: result.path,
-        message: `SRT exportado com ${result.cue_count} captions · UTF-8`
+        message: `SRT salvo · ${result.cue_count} legendas`
       })
     } catch (error) {
       setExportState({
@@ -800,11 +866,7 @@ function App() {
     }
   ] as const
   const topbarTitle = filePath ? selectedName : 'Nova transcrição'
-  const topbarSubtitle = captionsData && view === 'captions' && transcription.status === 'success'
-    ? resultMessage(captionsData.captions.length, captionsData.words.length, transcription.summary)
-    : transcription.status === 'success' || transcription.status === 'loading'
-      ? transcription.message
-      : filePath || 'Áudio ou vídeo local · o arquivo original nunca é modificado'
+  const topbarSubtitle = transcription.status === 'success' ? transcription.summary : ''
 
   function renderHelp(topic: HelpTopic, label: string, text: string) {
     return (
@@ -863,18 +925,21 @@ function App() {
             <div className={`nav-step ${step.state}`} key={step.label} aria-current={step.state === 'current' ? 'step' : undefined}>
               <span className="step-index">{step.state === 'done' ? '✓' : index + 1}</span>
               <span>{step.label}</span>
-              {step.hint && <small>{step.hint}</small>}
+              {step.hint === '…' && <small>…</small>}
             </div>
           ))}
         </nav>
 
         <div className="sidebar-footer">
-          <div className="runtime-line">
-            <span className={`status-dot ${runtime.status}`} aria-hidden="true" />
-            <span>{runtime.message}</span>
-          </div>
-          <span className="engine-version">{health.message}</span>
-          <button className="btn ghost small" onClick={checkRuntime} disabled={isBusy}>Reverificar runtime</button>
+          {runtime.status === 'missing' && (
+            <>
+              <div className="runtime-line">
+                <span className="status-dot missing" aria-hidden="true" />
+                <span>{runtime.message}</span>
+              </div>
+              <button className="btn ghost small" onClick={checkRuntime} disabled={isBusy}>Verificar de novo</button>
+            </>
+          )}
           <span className="signature">Guilherme Estevão Editor</span>
         </div>
       </aside>
@@ -895,8 +960,13 @@ function App() {
 
         <header className="topbar">
           <div className="topbar-title">
-            <h1>{topbarTitle}</h1>
-            <p>{topbarSubtitle}</p>
+            <div className="topbar-heading">
+              <h1 title={filePath ?? undefined}>{topbarTitle}</h1>
+              {filePath && (
+                <button className="link-button" onClick={selectMedia} disabled={isBusy}>Trocar</button>
+              )}
+            </div>
+            {topbarSubtitle && <p>{topbarSubtitle}</p>}
           </div>
           <div className="topbar-actions">
             {(transcription.status === 'loading' || captionJob.status === 'loading') && (
@@ -913,7 +983,7 @@ function App() {
             )}
             {filePath && (
               <button
-                className={`btn ${hasText ? 'secondary' : ''}`}
+                className={`btn ${hasText ? 'ghost' : ''}`}
                 onClick={runTranscription}
                 disabled={isBusy || runtime.status !== 'ready'}
               >
@@ -963,37 +1033,19 @@ function App() {
                   </svg>
                 </span>
                 <h2>Arraste um áudio ou vídeo</h2>
-                <p>Transcrição local com faster-whisper e legendas sincronizadas pelo áudio, prontas para o Premiere. Nada sai do seu computador.</p>
+                <p>Tudo roda no seu computador.</p>
                 <button className="btn" onClick={selectMedia} disabled={isBusy}>Selecionar arquivo</button>
                 <small>MP3 · WAV · M4A · FLAC · MP4 · MOV · MKV · WEBM</small>
                 {sourceMessage && <span className="source-error">{sourceMessage}</span>}
               </div>
             )}
 
-            {filePath && (
-              <div className="panel file-card">
-                <span className="file-icon" aria-hidden="true">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" />
-                  </svg>
-                </span>
-                <div className="file-meta">
-                  <strong>{selectedName}</strong>
-                  <small>{filePath}</small>
-                  {sourceMessage && <span className="source-error">{sourceMessage}</span>}
-                </div>
-                <button className="btn secondary small" onClick={selectMedia} disabled={isBusy}>Trocar arquivo</button>
-              </div>
-            )}
+            {filePath && sourceMessage && <span className="source-error">{sourceMessage}</span>}
 
             {filePath && transcription.status === 'idle' && (
               <div className="panel empty-state">
                 <h2>Pronto para transcrever</h2>
-                <p>{transcription.message}</p>
-                <p>
-                  Primeiro o SRTX transcreve o <strong>texto</strong>. Depois de revisar, você clica em{' '}
-                  <strong>Gerar legendas</strong> e cada palavra é sincronizada com o áudio.
-                </p>
+                <p>Primeiro o texto, depois as legendas sincronizadas com o áudio.</p>
               </div>
             )}
 
@@ -1012,13 +1064,9 @@ function App() {
                       style={job.progress === null ? undefined : { width: `${Math.round(job.progress * 100)}%` }}
                     />
                   </div>
-                  <small>
-                    {job.stage === 'loading_aligner'
-                      ? 'Na primeira vez o modelo de sincronização (~350 MB) é baixado; depois funciona offline.'
-                      : job.progress === null
-                        ? 'O carregamento do modelo não possui percentual artificial; o progresso numérico começa com o processamento.'
-                        : 'Percentual calculado pela posição já processada no áudio.'}
-                  </small>
+                  {job.stage === 'loading_aligner' && (
+                    <small>Na primeira vez o modelo de sincronização (~350 MB) é baixado.</small>
+                  )}
                 </div>
               )
             })()}
@@ -1027,7 +1075,6 @@ function App() {
               <div className="notice error" role="alert">
                 <strong>A transcrição não foi concluída.</strong>
                 <small>{transcription.message}</small>
-                <small>O arquivo e todas as configurações foram preservados. Use “Tentar novamente” ou reverifique o runtime.</small>
               </div>
             )}
 
@@ -1035,7 +1082,6 @@ function App() {
               <div className="notice error" role="alert">
                 <strong>As legendas não foram geradas.</strong>
                 <small>{captionJob.message}</small>
-                <small>O texto revisado foi preservado. Tente de novo com “Gerar legendas”.</small>
               </div>
             )}
 
@@ -1054,23 +1100,25 @@ function App() {
 
                 {textChanged && (
                   <div className="notice accent" aria-live="polite">
-                    <strong>O texto mudou depois que as legendas foram geradas.</strong>
-                    <small>Use “Gerar legendas novamente” para sincronizar o texto novo com o áudio.</small>
+                    <strong>Texto alterado — gere as legendas novamente.</strong>
                   </div>
                 )}
 
                 {(view === 'text' || !hasCaptions) && (
                   <>
                     <div className="editor-heading">
-                      <h2>Texto · {countWords(textSegments)} palavras</h2>
-                      <small>Corrija à vontade: os tempos vêm do áudio quando você gerar as legendas</small>
+                      <h2>{hasCaptions ? '' : `Texto · ${countWords(textSegments)} palavras`}</h2>
+                      <small>Enter separa falas · Backspace no início junta</small>
                     </div>
                     <div className="panel caption-list text-list">
                       {textSegments.map((segment, index) => (
                         <div className="caption-row text-row" key={`${segment.start}-${index}`}>
                           <span className="caption-time">{formatTime(segment.start)}</span>
                           <textarea
-                            ref={(element) => fitTextarea(element)}
+                            ref={(element) => {
+                              textInputRefs.current[index] = element
+                              fitTextarea(element)
+                            }}
                             value={segment.text}
                             rows={1}
                             spellCheck={false}
@@ -1080,6 +1128,7 @@ function App() {
                               fitTextarea(event.target)
                               updateSegmentText(index, event.target.value)
                             }}
+                            onKeyDown={(event) => handleTextKeyDown(index, event)}
                           />
                         </div>
                       ))}
@@ -1089,21 +1138,10 @@ function App() {
 
                 {view === 'captions' && captionsData && (
                   <>
-                    <div className={`notice ${exportState.status === 'success' ? 'success' : exportState.status === 'error' ? 'error' : ''}`}>
-                      <strong>{exportState.message}</strong>
-                      {exportState.status === 'success' && <small>{exportState.path}</small>}
-                    </div>
-
-                    {segmentationChanged && !textChanged && segmentState.status !== 'error' && (
-                      <div className="notice accent" aria-live="polite">
-                        <strong>
-                          {isSegmenting
-                            ? segmentState.message
-                            : 'As opções de legenda mudaram. Use “Regerar legendas” para aplicá-las sem sincronizar de novo.'}
-                        </strong>
-                        {captionsData.captionsEdited && !isSegmenting && (
-                          <small>Regerar descarta as edições manuais feitas abaixo; o app pede confirmação.</small>
-                        )}
+                    {(exportState.status === 'success' || exportState.status === 'error') && (
+                      <div className={`notice ${exportState.status}`} role={exportState.status === 'error' ? 'alert' : 'status'}>
+                        <strong>{exportState.message}</strong>
+                        {exportState.status === 'success' && <small>{exportState.path}</small>}
                       </div>
                     )}
 
@@ -1115,8 +1153,8 @@ function App() {
                     )}
 
                     <div className="editor-heading">
-                      <h2>Legendas · {captionsData.captions.length}</h2>
-                      <small>Enter divide · vazio + Backspace remove · clique no texto para editar</small>
+                      <h2 />
+                      <small>Enter divide · Backspace em vazia remove</small>
                     </div>
 
                     <div className="panel caption-list">
@@ -1167,17 +1205,6 @@ function App() {
                       })}
                     </div>
 
-                    <details className="panel raw-words">
-                      <summary>Ver amostra de palavras sincronizadas</summary>
-                      <div className="word-preview">
-                        {captionsData.words.slice(0, 24).map((word, index) => (
-                          <span className="word-chip" key={`${word.start}-${index}`}>
-                            <strong>{word.text}</strong>
-                            <small>{word.start.toFixed(2)} → {word.end.toFixed(2)}</small>
-                          </span>
-                        ))}
-                      </div>
-                    </details>
                   </>
                 )}
               </>
@@ -1271,11 +1298,6 @@ function App() {
                   <span>Moeda em formato “mil”</span>
                   {renderHelp('money', 'Explicar valores monetários', 'Quando reconhecer dinheiro em guaraníes, o app pode padronizar como “200 mil”. Números comuns de contagem não são tratados como moeda.')}
                   {renderToggle(formatMonetaryThousands, () => setFormatMonetaryThousands((current) => !current), 'Moeda em formato mil')}
-                </div>
-                <div className="setting-row">
-                  <span>Trava visual · 17 caracteres</span>
-                  {renderHelp('visual-limit', 'Explicar trava visual', 'Se uma legenda tiver mais de uma palavra e passar de 17 caracteres contando espaços, o engine separa. Palavra única longa continua inteira.')}
-                  <span className="static-pill">ativa</span>
                 </div>
               </div>
             </section>

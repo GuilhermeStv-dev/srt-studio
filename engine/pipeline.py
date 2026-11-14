@@ -107,6 +107,7 @@ def parse_reviewed_words(items: object) -> tuple[WordToken, ...]:
                 end=end,
                 probability=None if probability is None else float(probability),
                 kind=None if kind is None else str(kind),
+                break_after=bool(item.get("break_after", False)),
             )
         )
 

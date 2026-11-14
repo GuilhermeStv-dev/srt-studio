@@ -54,28 +54,56 @@ def tokenize_words(words: Sequence[str], vocab: Mapping[str, int]) -> list[list[
     return tokenized
 
 
-def _viterbi(log_probs: np.ndarray, targets: Sequence[int], blank: int) -> np.ndarray:
+_GARBAGE = -1
+
+
+def _viterbi(
+    log_probs: np.ndarray,
+    targets: Sequence[int],
+    blank: int,
+    garbage_penalty: float | None = None,
+) -> tuple[np.ndarray, int]:
     """Devolve, para cada frame, o índice do estado na sequência estendida
-    [blank, t0, blank, t1, ..., blank]."""
+    [G?, blank, t0, blank, t1, ..., blank, G?] e o deslocamento do primeiro blank.
+
+    Com `garbage_penalty`, estados "lixo" nas pontas absorvem fala que não
+    pertence ao texto (o outro falante antes/depois da janela). Eles emitem com a
+    probabilidade do símbolo mais provável menos a penalidade, então nunca vencem
+    os caracteres do texto onde o texto realmente foi falado (D-020).
+    """
 
     num_frames = log_probs.shape[0]
-    states = [blank]
+    core = [blank]
     for token in targets:
-        states.extend((token, blank))
-    states_arr = np.asarray(states, dtype=np.int64)
+        core.extend((token, blank))
+    use_garbage = garbage_penalty is not None
+    states = ([_GARBAGE] if use_garbage else []) + core + ([_GARBAGE] if use_garbage else [])
+    offset = 1 if use_garbage else 0
     num_states = len(states)
 
-    # Pular o blank (s-2 -> s) só é permitido entre tokens diferentes.
+    emissions = np.empty((num_frames, num_states))
+    token_states = [index for index, state in enumerate(states) if state != _GARBAGE]
+    emissions[:, token_states] = log_probs[:, [states[index] for index in token_states]]
+    if use_garbage:
+        garbage = log_probs.max(axis=1) - float(garbage_penalty)
+        emissions[:, 0] = garbage
+        emissions[:, -1] = garbage
+
+    # Pular o blank (s-2 -> s) só é permitido entre tokens diferentes; o lixo pode
+    # pular direto para o primeiro token e ser alcançado a partir do último.
     can_skip = np.zeros(num_states, dtype=bool)
     for s in range(2, num_states):
         can_skip[s] = states[s] != blank and states[s] != states[s - 2]
 
     neg_inf = -np.inf
     score = np.full(num_states, neg_inf)
-    score[0] = log_probs[0, blank]
-    if num_states > 1:
-        score[1] = log_probs[0, states[1]]
+    score[offset] = emissions[0, offset]
+    if offset + 1 < num_states:
+        score[offset + 1] = emissions[0, offset + 1]
+    if use_garbage:
+        score[0] = emissions[0, 0]
     backpointer = np.zeros((num_frames, num_states), dtype=np.int8)
+    columns = np.arange(num_states)
 
     for t in range(1, num_frames):
         stay = score
@@ -83,13 +111,16 @@ def _viterbi(log_probs: np.ndarray, targets: Sequence[int], blank: int) -> np.nd
         skip = np.where(can_skip, np.concatenate(([neg_inf, neg_inf], score[:-2])), neg_inf)
         candidates = np.stack((stay, step, skip))
         choice = np.argmax(candidates, axis=0)
-        score = candidates[choice, np.arange(num_states)] + log_probs[t, states_arr]
+        score = candidates[choice, columns] + emissions[t]
         backpointer[t] = choice
 
-    # O caminho termina no último token ou no blank final.
-    last = num_states - 1
-    if num_states > 1 and score[num_states - 2] > score[last]:
-        last = num_states - 2
+    # O caminho termina no último token, no blank final ou no lixo final.
+    finals = [offset + len(core) - 1]
+    if len(core) > 1:
+        finals.append(offset + len(core) - 2)
+    if use_garbage:
+        finals.append(num_states - 1)
+    last = max(finals, key=lambda index: score[index])
     if not np.isfinite(score[last]):
         raise ValueError("Áudio curto demais para o texto informado")
 
@@ -98,7 +129,7 @@ def _viterbi(log_probs: np.ndarray, targets: Sequence[int], blank: int) -> np.nd
     for t in range(num_frames - 1, -1, -1):
         path[t] = state
         state -= int(backpointer[t, state])
-    return path
+    return path - offset, len(core)
 
 
 def align_words(
@@ -107,6 +138,7 @@ def align_words(
     *,
     blank: int,
     delimiter: int | None = None,
+    garbage_penalty: float | None = None,
 ) -> list[WordSpan]:
     """Alinha as palavras tokenizadas às log-probabilidades (frames x vocab).
 
@@ -129,13 +161,13 @@ def align_words(
     if log_probs.shape[0] < len(targets):
         raise ValueError("Áudio curto demais para o texto informado")
 
-    path = _viterbi(log_probs, targets, blank)
+    path, core_length = _viterbi(log_probs, targets, blank, garbage_penalty)
 
     first: dict[int, int] = {}
     last: dict[int, int] = {}
     scores: dict[int, list[float]] = {}
     for t, state in enumerate(path):
-        if state % 2 == 0:  # blank
+        if state < 0 or state >= core_length or state % 2 == 0:  # lixo ou blank
             continue
         owner = owners[(state - 1) // 2]
         if owner < 0:
