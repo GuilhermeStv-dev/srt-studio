@@ -99,6 +99,14 @@ Cada novo corte considerado ruim deve virar uma fixture mínima antes de alterar
 - [x] entrega 2: UI guarda todas as `words` e as opções que geraram as legendas; ao mudar densidade/preposições/pontuação/moeda aparece “Regerar legendas”, que chama `segment` via IPC `engine:segment` sem retranscrever (confirmação se houver edição manual)
 - [ ] validar a entrega 2 no `npm run dev` do Windows
 
+### Transcrição e legendas separadas — D-019
+
+- `transcribe-text`: faster-whisper sem `word_timestamps`, devolve só parágrafos de texto;
+- `caption`: alinhamento forçado CTC (wav2vec2 ONNX + Viterbi em numpy) do texto revisado com o áudio, depois a segmentação de sempre;
+- medição em fala real ES: erro no início das frases caiu de 144 ms (máx. 390 ms) para 20 ms (máx. 52 ms);
+- desktop: Transcrever → **Texto** (parágrafos editáveis livremente) → **Gerar legendas** → editor de legendas; editar o texto depois marca as legendas como desatualizadas;
+- CI macOS executa `transcribe-text` + `caption` no engine empacotado; CI engine roda a suíte `test_alignment.py` com numpy.
+
 ### Identidade visual — D-018
 
 - [x] tema claro inspirado no ElevenLabs: barra lateral com etapas, barra superior com ações, painel de configurações, área de soltar arquivo, editor de legendas em linhas com tempo `mm:ss.cc` e contagem de caracteres (destaque acima de 17 com mais de uma palavra)

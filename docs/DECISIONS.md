@@ -232,3 +232,39 @@ mídia → faster-whisper → WordToken[] → CaptionCue[]
 **Marca SRTX preservada:** nome, ícone e o roxo `#6C3BFF` continuam; o roxo vira acento único (marca, etapa concluída, foco). As verificações de branding da CI (`SRTX`, `Guilherme Estevão Editor`, `#6C3BFF`) continuam válidas.
 
 **Substitui:** o tema escuro roxo de `brand.css`/`brand-overrides.css`, que foram removidos.
+
+## D-019 — Transcrição e legendas separadas; tempos por alinhamento forçado
+
+**Status:** aprovada pelo usuário em 13/11/2026 ("a transcrição precisa acontecer separada da legenda… um raio-x do áudio para perceber o momento em que a pessoa fala a palavra").
+
+**Problema:** as legendas chegavam ao Premiere dessincronizadas e exigiam ajuste manual. A causa é o tempo por palavra do Whisper (`word_timestamps=True`), estimado pela atenção do modelo: em medição com fala real em espanhol, o início das frases saía em média **144 ms** adiantado (máx. 390 ms), quase sempre antes da fala.
+
+**Decisão:** o fluxo passa a ter duas etapas de engine independentes:
+
+```
+1. Transcrição   mídia → faster-whisper (sem word_timestamps) → parágrafos de texto
+                 (comando `transcribe-text`)
+2. Legendas      texto revisado + áudio → alinhamento forçado CTC (wav2vec2)
+                 → WordToken[] com tempo medido no áudio → build_captions → CaptionCue[]
+                 (comando `caption`)
+```
+
+- O alinhamento usa um modelo acústico wav2vec2 CTC por idioma, rodando no `onnxruntime` (já empacotado pelo faster-whisper), com Viterbi próprio em numpy (`engine/alignment/`). Não adiciona torch.
+- Cada parágrafo é alinhado dentro da sua janela aproximada do Whisper, com margem de 0,6 s; erros ficam locais.
+- Resultado medido no mesmo áudio: erro médio no início das frases de **20 ms** (máx. 52 ms), resolução de 20 ms por frame.
+- Palavras sem som alinhável no vocabulário (dígitos como `50`, símbolos como `₲`) recebem tempo interpolado entre as vizinhas e `probability = null`.
+- Toda a cadeia de D-011/D-012/D-013 (moeda, preposições, trava de 17 caracteres) continua rodando sobre as palavras alinhadas, sem mudança.
+
+**Revisão do texto (substitui a regra de D-017):** como os tempos são medidos no áudio depois da revisão, o texto pode ser editado livremente (trocar, incluir ou remover palavras, mudar pontuação). A restrição "1 palavra → 1 palavra, tempos nunca mudam" de D-017 deixa de valer.
+
+**Modelos (baixados uma vez, no primeiro "Gerar legendas", para o cache do Hugging Face; depois funcionam offline — D-003):**
+
+| Idioma | Repositório | Arquivo | Licença |
+|---|---|---|---|
+| es | `XDcobra/wav2vec2-large-xlsr-53-spanish-ONNX` | `onnx/model_int8.onnx` (355 MB) | Apache-2.0 (base `jonatasgrosman/wav2vec2-large-xlsr-53-spanish`) |
+| pt | `onnx-community/wav2vec2-large-xlsr-53-portuguese-ONNX` | `onnx/model_q4.onnx` (241 MB) | Apache-2.0 (base `jonatasgrosman/wav2vec2-large-xlsr-53-portuguese`) |
+| en | `Xenova/wav2vec2-large-xlsr-53-english` | `onnx/model_int8.onnx` (318 MB) | Apache-2.0 (base `jonatasgrosman/wav2vec2-large-xlsr-53-english`) |
+
+Idioma detectado fora dessa lista gera erro explícito na etapa 2; a etapa 1 continua funcionando.
+
+**Compatibilidade:** `transcribe` (texto + legendas em uma chamada, com tempos do Whisper) e `segment` continuam disponíveis. `segment` é usado para regerar legendas com outras opções sem sincronizar de novo.

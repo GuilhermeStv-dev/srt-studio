@@ -13,6 +13,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      # numpy é necessário para a suíte de alinhamento forçado (D-019).
+      - run: python -m pip install numpy
       - run: python -m unittest discover -s tests/engine -p "test_*.py" -v
       - run: python -m engine.cli health
 

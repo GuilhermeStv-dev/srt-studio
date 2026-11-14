@@ -3,6 +3,8 @@
 from .faster_whisper_adapter import (
     RuntimeSelection,
     TranscriptionError,
+    TextSegmentResult,
+    TextTranscriptionResult,
     TranscriptionResult,
     TranscriptionUnavailableError,
     collect_word_tokens,
@@ -10,11 +12,14 @@ from .faster_whisper_adapter import (
     find_missing_windows_cuda_libraries,
     select_runtime,
     transcribe_file,
+    transcribe_text_file,
 )
 
 __all__ = [
     "RuntimeSelection",
     "TranscriptionError",
+    "TextSegmentResult",
+    "TextTranscriptionResult",
     "TranscriptionResult",
     "TranscriptionUnavailableError",
     "collect_word_tokens",
@@ -22,4 +27,5 @@ __all__ = [
     "find_missing_windows_cuda_libraries",
     "select_runtime",
     "transcribe_file",
+    "transcribe_text_file",
 ]

@@ -36,6 +36,10 @@ Responsável por:
 
 Nenhuma regra de caption deve morar aqui.
 
+### `engine/alignment`
+
+Sincronização palavra-a-palavra (D-019). Recebe o texto revisado em parágrafos e o áudio, roda um modelo wav2vec2 CTC no `onnxruntime` e encontra, por Viterbi (`ctc.py`, numpy puro), o frame de 20 ms em que cada palavra começa e termina. Devolve `WordToken[]` para a mesma cadeia de normalização/segmentação. Não conhece regras de legenda.
+
 ### `engine/normalization`
 Responsável por limpeza textual conservadora:
 
