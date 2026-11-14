@@ -23,8 +23,8 @@ permissions:
 
 jobs:
   macos-app:
-    # macos-14 = Apple Silicon (arm64), mesma arquitetura dos Macs M1/M2/M3.
-    runs-on: macos-14
+    # macos-15 = Apple Silicon (arm64), mesma arquitetura dos Macs M1/M2/M3.
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
