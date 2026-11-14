@@ -660,3 +660,19 @@ button, input, select, textarea { font: inherit; color: inherit; }
   .brand-name, .brand-tag, .nav-title, .nav-step span:not(.step-index), .nav-step small, .sidebar-footer { display: none; }
   .nav-step { justify-content: center; }
 }
+
+/* Topbar minimalista (D-020): nome do arquivo + ação discreta de troca. */
+.topbar-heading { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.topbar-heading h1 { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.link-button {
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.link-button:hover:not(:disabled) { color: var(--text); text-decoration: underline; }
+.link-button:disabled { cursor: not-allowed; opacity: .4; }

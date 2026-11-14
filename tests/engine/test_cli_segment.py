@@ -114,7 +114,8 @@ class SegmentCommandTests(unittest.TestCase):
         self.assertIn("tenés", texts)
         self.assertNotIn("tenes", texts.split())
         self.assertEqual(response["captions"][0]["start"], 0.00)
-        self.assertEqual(response["captions"][-1]["end"], 1.60)
+        # Fim da última palavra (1.60) + permanência de exibição de 0,3 s (D-020).
+        self.assertEqual(response["captions"][-1]["end"], 1.90)
 
     def test_deleted_word_is_omitted(self) -> None:
         reviewed = [word for index, word in enumerate(WORDS) if index != 0]

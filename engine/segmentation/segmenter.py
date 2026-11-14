@@ -84,8 +84,16 @@ _LEXICAL_EDGE_PUNCTUATION = re.compile(r"^[¿¡\"'“”‘’([{]+|[?!,.;:…\"
 _OPTIONAL_EDGE_PUNCTUATION = re.compile(r"^[,.]+|[,.]+$")
 _TERMINAL_PUNCTUATION = re.compile(r"[?!]$")
 _SOFT_PUNCTUATION = re.compile(r"[,.]$")
+# Fim de frase: nenhuma caption pode juntar o fim de uma frase com o início da
+# seguinte (ex.: "¿verdad?" / "Sí" ditos quase juntos por pessoas diferentes — D-020).
+_SENTENCE_END = re.compile(r"(?:[?!…]|(?<!\.)\.)[\"'”’)\]]*$")
+_ABBREVIATIONS = frozenset({"sr.", "sra.", "srta.", "dr.", "dra.", "ud.", "uds.", "lic.", "ing.", "prof.", "etc.", "ej.", "aprox.", "núm.", "pág."})
 _COUNTDOWN_NUMBER = re.compile(r"\d{1,2}")
 _MIN_SAFE_DURATION = 0.05
+# Exibição (D-020): o tempo de fim por palavra é medido no último "pico" de som e
+# fica curto; a caption não pode piscar entre palavras da mesma fala.
+_CHAIN_GAP = 0.6
+_LINGER = 0.3
 _MAX_MULTI_WORD_CAPTION_CHARS = 17
 
 
@@ -157,6 +165,15 @@ def _validate_words(words: Sequence[WordToken]) -> None:
         if word.start < previous_start:
             raise ValueError("WordToken com timestamp regressivo")
         previous_start = word.start
+
+
+def _forces_break_after(word: WordToken) -> bool:
+    if word.break_after:
+        return True
+    text = word.text.strip()
+    if text.lower() in _ABBREVIATIONS:
+        return False
+    return bool(_SENTENCE_END.search(text))
 
 
 def _gap(left: WordToken, right: WordToken) -> float:
@@ -297,6 +314,9 @@ def _candidate_cost(
 
         # Pausa forte é uma fronteira obrigatória, mesmo em expressão coesa.
         if gap >= hard_pause:
+            return math.inf
+        # Fim de frase ou troca de fala também: nunca dentro da mesma caption.
+        if _forces_break_after(left):
             return math.inf
 
         cost -= _pair_cohesion(left, right, config)
@@ -444,4 +464,22 @@ def segment_words(
         )
         previous_cue_end = end_time
 
-    return tuple(cues)
+    return _extend_display(cues)
+
+
+def _extend_display(cues: list[CaptionCue]) -> tuple[CaptionCue, ...]:
+    """Mantém cada caption na tela até a próxima quando a fala segue (gap curto) e,
+    numa pausa, por mais `_LINGER` segundos. Nunca cria overlap."""
+
+    extended: list[CaptionCue] = []
+    for index, cue in enumerate(cues):
+        end = cue.end
+        next_start = cues[index + 1].start if index + 1 < len(cues) else None
+        if next_start is None:
+            end = cue.end + _LINGER
+        elif next_start - cue.end <= _CHAIN_GAP:
+            end = max(cue.end, next_start)
+        else:
+            end = min(cue.end + _LINGER, next_start)
+        extended.append(CaptionCue(text=cue.text, start=cue.start, end=round(end, 3)))
+    return tuple(extended)

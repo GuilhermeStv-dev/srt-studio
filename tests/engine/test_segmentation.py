@@ -241,7 +241,39 @@ class SegmentationTests(unittest.TestCase):
             ),
             SegmentationConfig(target_words=2, preserve_commas_periods=False),
         )
-        self.assertEqual(result[0].text, "¿Quién? ¡Ahora!")
+        # Duas frases nunca dividem a mesma caption (D-020); os sinais continuam intactos.
+        self.assertEqual([cue.text for cue in result], ["¿Quién?", "¡Ahora!"])
+
+    def test_answer_spoken_right_after_question_gets_its_own_caption(self) -> None:
+        # Apresentadora pergunta e o entrevistado responde quase colado (D-020).
+        result = segment_words(
+            words(
+                ("Es", 0.00, 0.12),
+                ("rico,", 0.14, 0.40),
+                ("¿verdad?", 0.42, 0.80),
+                ("Sí,", 0.82, 1.00),
+                ("muy", 1.02, 1.20),
+                ("rico.", 1.22, 1.50),
+            ),
+            SegmentationConfig(target_words=2),
+        )
+        texts = [cue.text for cue in result]
+        self.assertIn("¿verdad?", [text.split()[-1] for text in texts])
+        self.assertTrue(all("¿verdad? Sí" not in text for text in texts), texts)
+        self.assertTrue(any(text.startswith("Sí") for text in texts), texts)
+
+    def test_break_after_marks_a_mandatory_boundary(self) -> None:
+        tokens = list(words(("hola", 0.00, 0.20), ("amigo", 0.21, 0.40)))
+        tokens[0] = WordToken(text="hola", start=0.00, end=0.20, break_after=True)
+        result = segment_words(tokens, SegmentationConfig(target_words=2))
+        self.assertEqual([cue.text for cue in result], ["hola", "amigo"])
+
+    def test_abbreviations_and_numbers_do_not_force_breaks(self) -> None:
+        result = segment_words(
+            words(("Sr.", 0.00, 0.20), ("López", 0.21, 0.50)),
+            SegmentationConfig(target_words=2),
+        )
+        self.assertEqual([cue.text for cue in result], ["Sr. López"])
 
     def test_comma_period_option_does_not_damage_numeric_separators(self) -> None:
         result = segment_words(
@@ -313,7 +345,29 @@ class SegmentationTests(unittest.TestCase):
         )
         self.assertEqual([cue.text for cue in result], ["uno", "dos"])
         self.assertEqual(result[1].start, 1.0)
-        self.assertEqual(result[1].end, 1.05)
+        # Duração mínima de 0,05 s reparada + permanência final de 0,3 s (D-020).
+        self.assertEqual(result[1].end, 1.35)
+
+    def test_caption_stays_until_next_one_while_speech_continues(self) -> None:
+        result = segment_words(
+            words(("uno", 0.00, 0.10), ("dos", 0.40, 0.50), ("tres", 2.00, 2.10)),
+            SegmentationConfig(target_words=1, ignore_prepositions=False),
+        )
+        self.assertEqual([cue.text for cue in result], ["uno", "dos", "tres"])
+        # Gap curto (0,3 s): "uno" fica até "dos" aparecer, sem piscar.
+        self.assertEqual(result[0].end, 0.40)
+        # Pausa longa: "dos" fica só +0,3 s depois do fim da palavra.
+        self.assertEqual(result[1].end, 0.80)
+        self.assertEqual(result[2].end, 2.40)
+
+    def test_display_extension_never_overlaps(self) -> None:
+        result = segment_words(
+            words(*[(f"p{index}", index * 0.25, index * 0.25 + 0.1) for index in range(12)]),
+            SegmentationConfig(target_words=1, ignore_prepositions=False),
+        )
+        for left, right in zip(result, result[1:]):
+            self.assertLessEqual(left.end, right.start)
+            self.assertGreater(left.end, left.start)
 
 
 if __name__ == "__main__":

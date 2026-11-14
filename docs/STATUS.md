@@ -99,6 +99,14 @@ Cada novo corte considerado ruim deve virar uma fixture mínima antes de alterar
 - [x] entrega 2: UI guarda todas as `words` e as opções que geraram as legendas; ao mudar densidade/preposições/pontuação/moeda aparece “Regerar legendas”, que chama `segment` via IPC `engine:segment` sem retranscrever (confirmação se houver edição manual)
 - [ ] validar a entrega 2 no `npm run dev` do Windows
 
+### Troca de fala, sincronização robusta e interface mínima — D-020
+
+- fim de frase (`? ! … .`) e fim de parágrafo são fronteiras obrigatórias de caption ("¿verdad?" / "Sí");
+- etapa Texto: Enter divide parágrafo (separa falas), Backspace no início junta;
+- alinhamento com margem de 1,5 s + estados "lixo": pior erro com janelas do Whisper deslocadas caiu de 589 ms para 57 ms;
+- caption fica na tela até a próxima quando a fala segue (≤ 0,6 s) ou +0,3 s numa pausa, sem overlap;
+- interface sem textos técnicos/redundantes.
+
 ### Transcrição e legendas separadas — D-019
 
 - `transcribe-text`: faster-whisper sem `word_timestamps`, devolve só parágrafos de texto;

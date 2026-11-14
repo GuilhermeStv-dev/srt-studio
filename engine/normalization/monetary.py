@@ -215,6 +215,7 @@ def _merged_token(
         end=max(word.end for word in words[start : end + 1]),
         probability=probability,
         kind="monetary",
+        break_after=words[end].break_after,
     )
 
 

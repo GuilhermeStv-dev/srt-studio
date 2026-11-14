@@ -60,6 +60,18 @@ class AlignWordsTest(unittest.TestCase):
         )
         self.assertEqual([s.word_index for s in spans], [0, 2])
 
+    def test_garbage_states_absorb_speech_outside_the_text(self):
+        # Outro falante diz "mas" antes e "si" depois; o texto é só "hola".
+        frames = list("__mas__hola__si__")
+        tokens = tokenize_words(["hola"], VOCAB)
+        robust = align_words(emissions(frames, VOCAB), tokens, blank=0, garbage_penalty=2.0)
+        self.assertEqual((robust[0].start_frame, robust[0].end_frame), (7, 11))
+
+    def test_garbage_never_swallows_the_text_itself(self):
+        frames = list("hola")
+        spans = align_words(emissions(frames, VOCAB), tokenize_words(["hola"], VOCAB), blank=0, garbage_penalty=0.0)
+        self.assertEqual((spans[0].start_frame, spans[0].end_frame), (0, 4))
+
     def test_rejects_audio_shorter_than_text(self):
         with self.assertRaises(ValueError):
             align_words(emissions(list("__"), VOCAB), tokenize_words(["hola"], VOCAB), blank=0)
@@ -132,6 +144,15 @@ class AlignSegmentsTest(unittest.TestCase):
         self.assertGreaterEqual(words[1].start, words[0].end)
         self.assertLessEqual(words[1].end, words[2].start + 1e-9)
         self.assertIsNone(words[1].probability)
+
+    def test_last_word_of_each_paragraph_forces_a_caption_break(self):
+        model = FakeModel({1.0: "hola", 2.0: "casa"})
+        words = align_segments(
+            self.audio(4.0),
+            [TextSegment("hola", 0.8, 1.5), TextSegment("casa", 1.6, 2.5)],
+            model,
+        )
+        self.assertEqual([w.break_after for w in words], [True, True])
 
     def test_empty_segment_is_skipped(self):
         model = FakeModel({1.0: "hola"})
