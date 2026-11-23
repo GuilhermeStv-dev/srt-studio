@@ -151,7 +151,15 @@ def caption_command(args: argparse.Namespace) -> int:
     """Etapa 2 de D-019: alinha o texto revisado ao áudio e gera as legendas."""
     progress_callback = emit_progress if args.progress_events else None
     try:
-        from engine.alignment import AlignmentError, align_segments, load_alignment_model, load_audio
+        from engine.alignment import (
+            AlignmentError,
+            align_segments,
+            align_transcript_audio,
+            load_alignment_model,
+            load_audio,
+            snap_words_to_speech,
+        )
+        from engine.alignment.aligner import SAMPLE_RATE
     except ImportError as exc:
         print(json.dumps({"ok": False, "error": f"Sincronização indisponível: {exc}"}, ensure_ascii=False), file=sys.stderr)
         return 7
@@ -171,9 +179,15 @@ def caption_command(args: argparse.Namespace) -> int:
         if progress_callback is not None:
             progress_callback("aligning", 0.0)
         audio = load_audio(args.input)
-        words = align_segments(audio, segments, model, progress_callback)
+        try:
+            # D-023: texto inteiro contra o áudio inteiro; parágrafo a parágrafo só como reserva.
+            words = align_transcript_audio(audio, segments, model, progress_callback, language=args.language)
+        except ValueError:
+            words = align_segments(audio, segments, model, progress_callback)
         if not words:
             raise ValueError("Nenhuma palavra pôde ser sincronizada")
+        # D-022: bordas das palavras nos silêncios reais + pausa medida por palavra.
+        words = snap_words_to_speech(words, audio, SAMPLE_RATE)
         cues = build_captions(words, options)
     except (FileNotFoundError, AlignmentError, ValueError, RuntimeError) as exc:
         print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False), file=sys.stderr)
@@ -254,6 +268,30 @@ def export_srt_command(args: argparse.Namespace) -> int:
     try:
         cues = _read_captions_from_stdin()
         result = export_srt(cues, args.output, overwrite=args.overwrite)
+    except (ValueError, InvalidCueError, FileNotFoundError, FileExistsError, OSError) as exc:
+        print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False), file=sys.stderr)
+        return 5
+
+    emit({"ok": True, **result.to_dict()})
+    return 0
+
+
+def export_ttml_command(args: argparse.Namespace) -> int:
+    """Experimento D-027: legendas com estilo (tamanho, alinhamento, zona) em TTML."""
+    from engine.srt.ttml import CaptionStyle, export_ttml
+
+    try:
+        cues = _read_captions_from_stdin()
+        style = CaptionStyle(
+            font_size=args.font_size,
+            frame_width=args.width,
+            frame_height=args.height,
+            font_family=args.font_family or None,
+            color=args.color,
+            outline_color=args.outline_color or None,
+            outline_width=args.outline_width,
+        )
+        result = export_ttml(cues, args.output, style, overwrite=args.overwrite)
     except (ValueError, InvalidCueError, FileNotFoundError, FileExistsError, OSError) as exc:
         print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False), file=sys.stderr)
         return 5
@@ -343,6 +381,19 @@ def build_parser() -> argparse.ArgumentParser:
         help="Permite sobrescrever um arquivo existente após confirmação externa explícita",
     )
 
+    ttml_parser = sub.add_parser(
+        "export-ttml", help="Valida captions recebidas via stdin e grava TTML com estilo (painel do Premiere)"
+    )
+    ttml_parser.add_argument("--output", required=True)
+    ttml_parser.add_argument("--font-size", type=int, default=122)
+    ttml_parser.add_argument("--width", type=int, default=1920)
+    ttml_parser.add_argument("--height", type=int, default=1080)
+    ttml_parser.add_argument("--font-family", default="")
+    ttml_parser.add_argument("--color", default="#FFFFFF")
+    ttml_parser.add_argument("--outline-color", default="")
+    ttml_parser.add_argument("--outline-width", type=int, default=0)
+    ttml_parser.add_argument("--overwrite", action="store_true")
+
     return parser
 
 
@@ -363,6 +414,8 @@ def main() -> int:
         return segment_command(args)
     if args.command == "export-srt":
         return export_srt_command(args)
+    if args.command == "export-ttml":
+        return export_ttml_command(args)
     return 2
 
 

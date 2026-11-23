@@ -6,6 +6,35 @@ O SRT Studio já possui fluxo funcional de ponta a ponta: mídia local → `fast
 
 Repositório: `GuilhermeStv-dev/srt-studio`. A `main` é o estado estável; mudanças devem usar branch + PR.
 
+Checkpoint de 2026-11-19 (D-025/D-026):
+
+- terceiro teste no Premiere: "100, 200" fora do lugar, "Y" com 2 frames. Viraram regras gerais (números pela forma falada, mínimo 3 frames, conjunções);
+- trocado o modelo de sincronização pelo MMS da Meta em fp32 (ONNX em `%LOCALAPPDATA%\SRTX\models\mms-fa`; recriar com `scripts/export_mms_onnx.py`, que precisa de `pip install torch torchaudio onnx` no .venv);
+- D-024 (Whisper como reserva) revogada pela medição;
+- toda mudança de sincronização agora é medida no vídeo inteiro com `scripts/benchmark_sync.py`, não em trechos escolhidos;
+- próximo passo: usuário gerar de novo no painel. Para chegar perto de 100%: gabarito humano (SRT corrigido exportado do Premiere) e hospedagem do modelo para o instalador.
+
+Checkpoint de 2026-11-19 (D-023):
+
+- segundo teste no Premiere: "Jessica", "Tengo" e "¿Están" atrasados/esticados. Causa: alinhamento parágrafo a parágrafo empurrava os seguintes em cascata;
+- `caption` agora usa `align_transcript_audio` (texto inteiro contra o áudio inteiro, faixa ±3 s pelos parágrafos do Whisper, lixo entre palavras); o antigo fica como reserva;
+- D-024 no mesmo dia: Whisper com `word_timestamps` vira reserva para palavras em que o alinhamento perdeu a confiança (inglês, fala sobreposta, números);
+- próximo passo: o usuário **transcrever de novo** no painel (a referência do Whisper só existe em transcrições novas) e gerar as legendas; se ainda houver erro, medir contra as legendas corrigidas por ele (exportar SRT do Premiere) para ter uma referência de verdade.
+
+Checkpoint de 2026-11-19 (D-022):
+
+- primeiro teste real do painel no Premiere funcionou; o problema restante era ritmo ("El día de" / "hoy estamos por");
+- o comando `caption` agora mede os silêncios reais do áudio, encaixa as bordas das palavras neles e grava `pause_after`; a segmentação nunca atravessa um silêncio ≥ 80 ms;
+- próximo passo: o usuário gerar de novo no painel (o painel já usa o engine do repositório) e apontar casos que ainda precisem de ajuste manual; cada caso vira fixture antes de mexer em pesos.
+
+Checkpoint de 2026-11-19 (D-021):
+
+- primeira entrega do painel do Premiere em `apps/premiere-panel` (CEP): renderiza o áudio da sequência, transcreve, sincroniza e insere a trilha de legendas, usando o mesmo engine e contrato do desktop;
+- instalado no Windows do usuário por junction (`scripts/install-premiere-panel.ps1`); interface conferida só em navegador (modo demonstração);
+- ícone "Sx" refeito com Adobe Clean ExtraBold (`scripts/render-brand-icons.py` → `assets/branding/`);
+- editor de legendas do desktop ganhou "Juntar" com a próxima;
+- próximo passo: o usuário abrir Janela > Extensões > SRTX no Premiere e rodar o fluxo numa sequência real; anotar erros do `host.jsx` (export do áudio, `createCaptionTrack`) para corrigir.
+
 Checkpoint de 2026-11-14 (D-020):
 
 - primeiro uso real de D-019: ~80% sincronizado e falas coladas de pessoas diferentes numa legenda só;

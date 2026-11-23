@@ -16,7 +16,8 @@ from typing import Any, Callable, Sequence
 
 import numpy as np
 
-from engine.alignment.ctc import align_words, tokenize_words
+from engine.alignment.ctc import align_transcript, align_words, tokenize_spoken, tokenize_words
+from engine.alignment.spoken import spoken_form
 from engine.models import WordToken
 
 SAMPLE_RATE = 16000
@@ -86,6 +87,18 @@ def load_alignment_model(
     language: str,
     progress_callback: ProgressCallback | None = None,
 ) -> OnnxCtcModel:
+    # D-026: o MMS da Meta (feito para sincronização, multilíngue) tem prioridade
+    # quando está instalado; o wav2vec2 por idioma fica como reserva.
+    from engine.alignment.mms import MmsCtcModel, mms_available
+
+    if mms_available():
+        if progress_callback is not None:
+            progress_callback("loading_aligner", None)
+        try:
+            return MmsCtcModel()
+        except Exception:  # noqa: BLE001 - arquivo corrompido/versão do onnxruntime: usa a reserva
+            pass
+
     spec = ALIGNMENT_MODELS.get(language)
     if spec is None:
         supported = ", ".join(sorted(ALIGNMENT_MODELS))
@@ -159,6 +172,127 @@ def _fill_unaligned(
             result.append((left + step * offset, left + step * (offset + 1), None))
         index = run_end
     return result
+
+
+# Alinhamento global (D-023): o modelo roda no áudio inteiro em blocos com contexto,
+# e um único Viterbi encaixa o texto todo. Os parágrafos do Whisper só limitam a
+# busca (com margem larga), sem empurrar uns aos outros.
+FRAME_SAMPLES = 320  # passo do wav2vec2: 20 ms a 16 kHz
+FRAME_SECONDS = FRAME_SAMPLES / SAMPLE_RATE
+CHUNK_SECONDS = 20.0
+CONTEXT_SECONDS = 1.0
+GLOBAL_WINDOW_MARGIN = 3.0
+
+
+def full_log_probs(
+    audio: np.ndarray,
+    model: Any,
+    progress_callback: ProgressCallback | None = None,
+) -> np.ndarray:
+    """Log-probabilidades por frame de 20 ms para o áudio inteiro."""
+
+    total = len(audio)
+    total_frames = max(1, (total - 400) // FRAME_SAMPLES + 1)
+    chunk = int(CHUNK_SECONDS * SAMPLE_RATE) // FRAME_SAMPLES * FRAME_SAMPLES
+    context = int(CONTEXT_SECONDS * SAMPLE_RATE) // FRAME_SAMPLES * FRAME_SAMPLES
+    result: np.ndarray | None = None
+    chunk_starts = list(range(0, total, chunk))
+    for index, core_start in enumerate(chunk_starts):
+        start = max(0, core_start - context)
+        end = min(total, core_start + chunk + context)
+        piece = audio[start:end]
+        if len(piece) < 400:
+            break
+        log_probs = model.log_probs(piece)
+        if result is None:
+            result = np.full((total_frames, log_probs.shape[1]), np.nan, dtype=np.float32)
+        first_frame = core_start // FRAME_SAMPLES
+        last_frame = min(total_frames, (core_start + chunk) // FRAME_SAMPLES)
+        local_first = first_frame - start // FRAME_SAMPLES
+        available = min(last_frame - first_frame, log_probs.shape[0] - local_first)
+        if available > 0:
+            result[first_frame:first_frame + available] = log_probs[local_first:local_first + available]
+        if progress_callback is not None:
+            progress_callback("aligning", min(0.85, 0.85 * (index + 1) / len(chunk_starts)))
+    if result is None:
+        raise AlignmentError("Áudio curto demais para sincronizar")
+    # Frames que sobraram nas bordas dos blocos herdam o vizinho.
+    missing = np.isnan(result[:, 0])
+    if missing.any():
+        filled = np.where(~missing)[0]
+        nearest = filled[np.clip(np.searchsorted(filled, np.arange(total_frames)), 0, len(filled) - 1)]
+        result[missing] = result[nearest[missing]]
+    return result
+
+
+def align_transcript_audio(
+    audio: np.ndarray,
+    segments: Sequence[TextSegment],
+    model: Any,
+    progress_callback: ProgressCallback | None = None,
+    language: str = "es",
+) -> tuple[WordToken, ...]:
+    """Alinha todos os parágrafos de uma vez contra o áudio inteiro (D-023).
+
+    Números são alinhados pela forma falada ("100" → "cien", D-025)."""
+
+    duration = len(audio) / SAMPLE_RATE
+    words: list[str] = []
+    paragraph_end: list[bool] = []
+    windows: list[tuple[int, int]] = []
+    for segment in segments:
+        parts = segment.text.split()
+        if not parts:
+            continue
+        first = max(0, int((segment.start - GLOBAL_WINDOW_MARGIN) / FRAME_SECONDS))
+        last = int((segment.end + GLOBAL_WINDOW_MARGIN) / FRAME_SECONDS)
+        for index, part in enumerate(parts):
+            words.append(part)
+            paragraph_end.append(index == len(parts) - 1)
+            windows.append((first, last))
+    if not words:
+        return ()
+
+    log_probs = full_log_probs(audio, model, progress_callback)
+    windows = [(min(a, log_probs.shape[0] - 1), min(b, log_probs.shape[0] - 1)) for a, b in windows]
+    prepare = getattr(model, "prepare", None) or (lambda text: text)
+    tokenized = tokenize_spoken(
+        [prepare(spoken_form(word, language)) for word in words], model.vocab, model.delimiter
+    )
+    spans = align_transcript(
+        log_probs,
+        tokenized,
+        windows,
+        blank=model.blank,
+        delimiter=model.delimiter,
+        garbage_penalty=GARBAGE_PENALTY,
+    )
+    aligned = {
+        span.word_index: (span.start_frame * FRAME_SECONDS, span.end_frame * FRAME_SECONDS, span.score)
+        for span in spans
+    }
+    timed = _fill_unaligned(words, aligned, 0.0, duration)
+
+    tokens: list[WordToken] = []
+    previous_end = 0.0
+    for index, (text, (start, end, score)) in enumerate(zip(words, timed)):
+        start = max(start, previous_end)
+        end = max(end, start + _MIN_WORD_DURATION)
+        start_ms = round(start * 1000)
+        end_ms = max(start_ms + 1, round(end * 1000))
+        tokens.append(
+            WordToken(
+                text=text,
+                start=start_ms / 1000,
+                end=end_ms / 1000,
+                probability=None if score is None or not math.isfinite(score) else round(score, 4),
+                break_after=paragraph_end[index],
+            )
+        )
+        previous_end = end_ms / 1000
+    if progress_callback is not None:
+        progress_callback("aligning", 0.99)
+    return tuple(tokens)
 
 
 def align_segments(

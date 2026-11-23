@@ -1,0 +1,104 @@
+{
+  "name": "es_py_speech_runs_target_3",
+  "description": "Trecho real (Mercado 4): no alvo 3 'El día de hoy' cabe e fica junto; 'estamos' fica sozinho porque vem depois de um silêncio real (D-022).",
+  "config": {
+    "target_words": 3,
+    "ignore_prepositions": true,
+    "preserve_commas_periods": true
+  },
+  "tokens": [
+    {
+      "text": "El",
+      "start": 0.08,
+      "end": 0.161,
+      "pause_after": 0.0
+    },
+    {
+      "text": "día",
+      "start": 0.221,
+      "end": 0.381,
+      "pause_after": 0.0
+    },
+    {
+      "text": "de",
+      "start": 0.442,
+      "end": 0.482,
+      "pause_after": 0.0
+    },
+    {
+      "text": "hoy",
+      "start": 0.522,
+      "end": 0.8,
+      "pause_after": 0.09
+    },
+    {
+      "text": "estamos",
+      "start": 0.89,
+      "end": 1.13,
+      "pause_after": 0.09
+    },
+    {
+      "text": "por",
+      "start": 1.22,
+      "end": 1.325,
+      "pause_after": 0.0
+    },
+    {
+      "text": "el",
+      "start": 1.365,
+      "end": 1.425,
+      "pause_after": 0.0
+    },
+    {
+      "text": "Mercado",
+      "start": 1.465,
+      "end": 1.766,
+      "pause_after": 0.0
+    },
+    {
+      "text": "4",
+      "start": 1.766,
+      "end": 2.288,
+      "pause_after": 0.0
+    },
+    {
+      "text": "y",
+      "start": 2.288,
+      "end": 2.328,
+      "pause_after": 0.0
+    },
+    {
+      "text": "tenemos",
+      "start": 2.368,
+      "end": 2.77,
+      "pause_after": 0.06
+    },
+    {
+      "text": "un",
+      "start": 2.83,
+      "end": 2.99,
+      "pause_after": 0.0
+    },
+    {
+      "text": "nuevo",
+      "start": 3.051,
+      "end": 3.65,
+      "pause_after": 0.06
+    },
+    {
+      "text": "desafío.",
+      "start": 3.71,
+      "end": 4.295,
+      "pause_after": null,
+      "break_after": true
+    }
+  ],
+  "expected_captions": [
+    "El día de hoy",
+    "estamos",
+    "por el Mercado",
+    "4",
+    "y tenemos",
+    "un nuevo desafío."
+  ]
+}

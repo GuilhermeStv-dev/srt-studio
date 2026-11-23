@@ -44,7 +44,7 @@ A UI configura, dispara operações e exibe resultados. **Regras de transcriçã
 ## Regras inegociáveis
 
 - Não mover lógica de transcrição/segmentação/SRT para React.
-- Não transformar o projeto em plugin UXP/Premiere; o produto atual é desktop standalone.
+- O produto continua desktop standalone. O painel do Premiere (`apps/premiere-panel`, CEP, D-021) é uma segunda interface do mesmo engine: não mova regras de transcrição/segmentação/SRT para ele nem troque CEP por UXP sem decisão do usuário.
 - Não adicionar backend, conta, assinatura, telemetria ou API paga ao MVP.
 - Não sobrescrever mídia ou SRT original silenciosamente.
 - Não gerar cue vazio, duração zero, overlap ou timestamp regressivo.

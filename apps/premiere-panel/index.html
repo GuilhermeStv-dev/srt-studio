@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SRTX</title>
+  <link rel="stylesheet" href="css/panel.css" />
+</head>
+<body>
+  <div class="app" id="app">
+    <header class="top">
+      <img class="mark" src="icons/srtx-48.png" alt="" aria-hidden="true" />
+      <span class="brand" title="Painel SRTX">SRTX</span>
+      <span class="build" id="build">b7</span>
+      <button class="seq" id="seq" type="button" title="Atualizar sequência ativa">
+        <i class="dot" id="seq-dot"></i>
+        <span class="seq-name" id="seq-name">Procurando sequência…</span>
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13 8a5 5 0 1 1-1.6-3.7M13 3v3h-3" /></svg>
+      </button>
+    </header>
+
+    <nav class="tabs" role="tablist">
+      <button class="tab is-active" data-tab="audio" type="button" role="tab"><i class="tn">1</i>Transcrição</button>
+      <button class="tab" data-tab="texto" type="button" role="tab" hidden><i class="tn">2</i>Texto</button>
+      <button class="tab" data-tab="legendas" type="button" role="tab" hidden><i class="tn">3</i>Legendas</button>
+      <button class="tab tab-sound" data-tab="som" type="button" role="tab">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 12V3.5l7-1.5V10.5" /><circle cx="4.5" cy="12" r="1.8" /><circle cx="11.5" cy="10.5" r="1.8" /></svg>Som
+      </button>
+    </nav>
+
+    <main class="body" id="body">
+      <div class="notice" id="notice" hidden></div>
+
+      <section class="view" data-view="audio">
+        <div class="card">
+          <h3>Origem</h3>
+          <div class="segmented" id="range" role="radiogroup" aria-label="Trecho">
+            <button type="button" data-value="all">Sequência inteira</button>
+            <button type="button" data-value="inout">Entre In e Out</button>
+          </div>
+          <small id="range-hint">O áudio da timeline é renderizado pelo próprio Premiere.</small>
+        </div>
+
+        <div class="card">
+          <h3>Transcrição</h3>
+          <div class="fields">
+            <label class="field">
+              <span>Idioma</span>
+              <select id="language">
+                <option value="es">Espanhol</option>
+                <option value="pt">Português</option>
+                <option value="en">Inglês</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Precisão</span>
+              <select id="model">
+                <option value="large-v3">Máxima</option>
+                <option value="medium">Equilibrada</option>
+                <option value="small">Rápida</option>
+              </select>
+            </label>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Legendas</h3>
+          <span class="label">Palavras por legenda</span>
+          <div class="segmented" id="words" role="radiogroup" aria-label="Palavras por legenda">
+            <button type="button" data-value="1">1</button>
+            <button type="button" data-value="2">2</button>
+            <button type="button" data-value="3">3</button>
+            <button type="button" data-value="4">4</button>
+          </div>
+          <div class="switches">
+            <label class="switch-row"><span>Preposição não conta como palavra</span><input type="checkbox" id="opt-prep" role="switch" /></label>
+            <label class="switch-row"><span>Manter vírgulas e pontos</span><input type="checkbox" id="opt-punct" role="switch" /></label>
+            <label class="switch-row"><span>Valores como “200 mil”</span><input type="checkbox" id="opt-money" role="switch" /></label>
+          </div>
+        </div>
+      </section>
+
+      <section class="view" data-view="texto" hidden>
+        <p class="hint">Corrija o texto antes de gerar as legendas. Cada bloco é uma fala: a legenda nunca junta dois blocos.</p>
+        <div class="paragraphs" id="paragraphs"></div>
+      </section>
+
+      <section class="view" data-view="legendas" hidden>
+        <div class="card style-card">
+          <h3>Estilo ao inserir</h3>
+          <div class="segmented" id="caption-mode" role="radiogroup" aria-label="Formato">
+            <button type="button" data-value="graphic">Clipes de texto</button>
+            <button type="button" data-value="native">Legenda nativa</button>
+          </div>
+          <div class="mogrt-row" id="mogrt-row" hidden>
+            <select id="caption-mogrt" aria-label="Modelo de legenda"></select>
+            <button type="button" class="ghost small" id="mogrt-refresh" title="Procurar modelos de novo">↻</button>
+          </div>
+          <select id="caption-style" aria-label="Estilo ao inserir"></select>
+          <div class="style-colors" id="style-colors" hidden>
+            <label class="color-field"><input type="color" id="style-color" /><span>Texto</span></label>
+            <label class="color-field"><input type="color" id="style-outline" /><span>Contorno</span></label>
+            <label class="color-field"><input type="number" id="style-outline-width" min="0" max="40" step="1" /><span>px</span></label>
+          </div>
+          <small id="style-hint"></small>
+        </div>
+        <div class="list-head">
+          <span id="cue-count">0 legendas</span>
+          <button type="button" class="chip" id="regen" hidden>Aplicar ajustes de legenda</button>
+        </div>
+        <ol class="cues" id="cues"></ol>
+      </section>
+
+      <section class="view sound" data-view="som" hidden>
+        <div class="sound-head">
+          <label class="search">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5" /><path d="M10.5 10.5 14 14" /></svg>
+            <input id="sound-search" type="search" placeholder="Buscar som…" spellcheck="false" />
+          </label>
+          <div class="segmented" id="sound-section" role="radiogroup" aria-label="Tipo"></div>
+          <div class="chips" id="sound-cats"></div>
+        </div>
+        <ol class="sounds" id="sound-list"></ol>
+        <div class="sound-empty" id="sound-empty" hidden></div>
+        <div class="sound-foot">
+          <label class="field inline">
+            <span>Trilha</span>
+            <select id="sound-track"></select>
+          </label>
+          <button type="button" class="link" id="sound-folder" title="Escolher a pasta da biblioteca">Pasta…</button>
+        </div>
+      </section>
+
+      <div class="progress card" id="progress" hidden>
+        <ol class="steps" id="steps"></ol>
+        <div class="bar"><div class="fill" id="bar-fill"></div></div>
+        <div class="progress-foot">
+          <span class="pct" id="pct"></span>
+          <button type="button" class="ghost small" id="cancel">Cancelar</button>
+        </div>
+      </div>
+    </main>
+
+    <footer class="cta-slot">
+      <button type="button" class="cta" id="primary">Transcrever sequência</button>
+      <button type="button" class="ghost" id="secondary" hidden></button>
+    </footer>
+  </div>
+
+  <script src="js/cep.js"></script>
+  <script src="js/engine.js"></script>
+  <script src="js/library.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

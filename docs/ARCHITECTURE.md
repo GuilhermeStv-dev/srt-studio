@@ -25,6 +25,16 @@ Responsável somente por experiência desktop:
 
 A UI **não** decide como o texto é segmentado nem valida SRT por conta própria.
 
+### `apps/premiere-panel` (D-021)
+
+Painel CEP do Premiere, segunda interface do mesmo engine:
+
+- `jsx/host.jsx` (ExtendScript): informações da sequência ativa, renderizar o áudio (`exportAsMediaDirect` com o preset WAV 16 kHz do Premiere), importar o SRT e criar a trilha de legendas (`createCaptionTrack`), mover a agulha;
+- `js/engine.js` (Node no CEP): chama o engine com os mesmos comandos e o mesmo contrato JSON do desktop (`transcribe-text`, `caption`, `segment`, `export-srt`);
+- `js/app.js` + `css/panel.css`: fluxo Áudio → Texto → Legendas, tema escuro que acompanha o Premiere.
+
+Como no desktop, o painel não decide segmentação nem valida SRT. Instalação de desenvolvimento: `scripts/install-premiere-panel.ps1`.
+
 ### `engine/transcription`
 Responsável por:
 

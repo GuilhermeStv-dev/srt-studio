@@ -115,6 +115,49 @@ Cada novo corte considerado ruim deve virar uma fixture mínima antes de alterar
 - desktop: Transcrever → **Texto** (parágrafos editáveis livremente) → **Gerar legendas** → editor de legendas; editar o texto depois marca as legendas como desatualizadas;
 - CI macOS executa `transcribe-text` + `caption` no engine empacotado; CI engine roda a suíte `test_alignment.py` com numpy.
 
+### Sincronização MMS fp32 — D-026 (D-024 revogada)
+
+- [x] MMS_FA da Meta exportado para ONNX fp32 (`scripts/export_mms_onnx.py`), usado quando está em `%LOCALAPPDATA%\SRTX\models\mms-fa`
+- [x] números pela forma falada, legendas com no mínimo 3 frames, conjunções puxam a palavra seguinte (D-025)
+- [x] palavra nunca atravessa silêncio ≥ 0,2 s; encaixe nos silêncios limitado a 250 ms
+- [x] medição do vídeo inteiro (`scripts/benchmark_sync.py`): erro mediano 272 → 0 ms; retomadas fora 15/20 → 5/20
+- [x] reserva do Whisper (D-024) removida: piorava a medição
+- [ ] usuário validar no Premiere
+- [ ] hospedar o modelo para download no primeiro uso (outros computadores / instalador)
+
+### Alinhamento global — D-023
+
+- [x] modelo de sincronização roda no áudio inteiro; um único Viterbi encaixa o texto todo (sem cascata entre parágrafos)
+- [x] estado "lixo" entre palavras absorve fala não transcrita
+- [x] áudio real: "Edgar"/"Tengo"/"¿Están" voltaram ao lugar (erros de até ~1 s eliminados)
+- [ ] usuário validar no Premiere
+
+### Ritmo pelo mapa de fala — D-022
+
+- [x] silêncios reais medidos no áudio (`engine/alignment/speech.py`) depois do alinhamento
+- [x] bordas das palavras encostadas nos silêncios; `WordToken.pause_after` com a pausa medida
+- [x] segmentação corta por blocos de fala: nenhuma legenda atravessa um silêncio ≥ 80 ms
+- [x] áudio real: erro mediano nas pausas 0 ms (antes 34/−67 ms); legendas cruzando pausa 3 → 1
+- [ ] usuário validar no Premiere com o painel em vídeos com ritmos diferentes (fala rápida, música de fundo)
+- [ ] "Mercado 4" ainda isola o "4" pela regra de contagem regressiva; avaliar nome/lugar + número
+
+### Painel do Premiere — D-021
+
+- [x] painel CEP em `apps/premiere-panel` (manifest, `host.jsx`, interface Áudio → Texto → Legendas, tema escuro que acompanha o Premiere)
+- [x] renderiza o áudio da sequência (inteira ou In/Out) com o preset WAV 16 kHz do Premiere e chama `transcribe-text` / `caption` / `segment` / `export-srt` do mesmo engine
+- [x] grava o SRT em `<projeto>/SRTX Legendas/` (nome novo a cada vez) e cria a trilha de legendas com `createCaptionTrack`
+- [x] `scripts/install-premiere-panel.ps1` liga o painel do repositório ao Premiere (junction + `PlayerDebugMode`)
+- [x] interface validada em navegador no modo demonstração (fora do Premiere)
+- [x] validado dentro do Premiere pelo usuário (fluxo de legendas)
+- [x] aba **Som**: biblioteca de efeitos e músicas (`js/library.js`) com busca, categorias, prévia e inserção na agulha (`srtx_insertSound`, overwrite na trilha escolhida ou na primeira livre). Pasta da biblioteca: localStorage, senão `%APPDATA%\SRTX\sound-library.json`
+- [ ] validar a aba Som dentro do Premiere
+- [ ] empacotar `.zxp` assinado e instalar junto com o SRTX
+
+### Ícone "Sx"
+
+- [x] quadrado roxo profundo com `Sx` em Adobe Clean ExtraBold (`assets/branding`), usado no `.ico`/`.icns`, na barra lateral e no painel
+- [ ] gerar novo instalador para o ícone aparecer no SRTX instalado
+
 ### Identidade visual — D-018
 
 - [x] tema claro inspirado no ElevenLabs: barra lateral com etapas, barra superior com ações, painel de configurações, área de soltar arquivo, editor de legendas em linhas com tempo `mm:ss.cc` e contagem de caracteres (destaque acima de 17 com mais de uma palavra)

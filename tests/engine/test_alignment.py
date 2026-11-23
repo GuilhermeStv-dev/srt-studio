@@ -6,8 +6,8 @@ except ImportError:  # pragma: no cover - CI instala numpy para esta suíte
     np = None
 
 if np is not None:
-    from engine.alignment.aligner import TextSegment, _fill_unaligned, align_segments
-    from engine.alignment.ctc import align_words, tokenize_words
+    from engine.alignment.aligner import TextSegment, _fill_unaligned, align_segments, align_transcript_audio
+    from engine.alignment.ctc import align_transcript, align_words, tokenize_words
 
 VOCAB = {"<pad>": 0, "|": 1, "a": 2, "c": 3, "h": 4, "i": 5, "l": 6, "m": 7, "o": 8, "s": 9, "é": 10, "n": 11}
 
@@ -158,6 +158,41 @@ class AlignSegmentsTest(unittest.TestCase):
         model = FakeModel({1.0: "hola"})
         words = align_segments(self.audio(2.0), [TextSegment("   ", 0.0, 0.5), TextSegment("hola", 0.6, 1.5)], model)
         self.assertEqual([w.text for w in words], ["hola"])
+
+
+@unittest.skipIf(np is None, "numpy é necessário para o alinhamento")
+class AlignTranscriptTest(unittest.TestCase):
+    """Alinhamento global do texto inteiro (D-023)."""
+
+    def test_garbage_between_words_absorbs_untranscribed_speech(self):
+        frames = list("__hola__mas__casa__")
+        spans = align_transcript(
+            emissions(frames, VOCAB),
+            tokenize_words(["hola", "casa"], VOCAB),
+            [(0, len(frames) - 1)] * 2,
+            blank=0,
+        )
+        self.assertEqual([(s.start_frame, s.end_frame) for s in spans], [(2, 6), (13, 17)])
+
+    def test_window_picks_the_right_repetition(self):
+        frames = list("__si__________si__")
+        spans = align_transcript(emissions(frames, VOCAB), tokenize_words(["si"], VOCAB), [(10, 17)], blank=0)
+        self.assertEqual((spans[0].start_frame, spans[0].end_frame), (14, 16))
+
+    def test_short_paragraph_does_not_push_the_next_ones(self):
+        # Caso real "Jessica." / "Edgar." / "Tengo": janelas do Whisper erradas e
+        # curtas não podem esticar uma palavra e atrasar as seguintes em cascata.
+        model = FakeModel({1.0: "hola", 1.3: "si", 1.6: "casa", 2.4: "mas"})
+        audio = AlignSegmentsTest.audio(self, 4.0)
+        words = align_transcript_audio(
+            audio,
+            [TextSegment("hola", 0.9, 1.6), TextSegment("si", 1.6, 2.2), TextSegment("casa mas", 2.2, 3.0)],
+            model,
+        )
+        self.assertEqual([w.text for w in words], ["hola", "si", "casa", "mas"])
+        for word, expected in zip(words, [1.0, 1.3, 1.6, 2.4]):
+            self.assertAlmostEqual(word.start, expected, delta=0.03)
+        self.assertEqual([w.break_after for w in words], [True, True, False, True])
 
 
 if __name__ == "__main__":

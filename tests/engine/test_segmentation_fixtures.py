@@ -27,6 +27,8 @@ def build_tokens(items: list[dict]) -> list[WordToken]:
             end=float(item["end"]),
             probability=item.get("probability"),
             kind=item.get("kind"),
+            break_after=bool(item.get("break_after", False)),
+            pause_after=item.get("pause_after"),
         )
         for item in items
     ]

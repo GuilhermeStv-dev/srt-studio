@@ -95,6 +95,14 @@ _MIN_SAFE_DURATION = 0.05
 _CHAIN_GAP = 0.6
 _LINGER = 0.3
 _MAX_MULTI_WORD_CAPTION_CHARS = 17
+# D-022: com o mapa de fala medido no áudio, um silêncio real a partir disto separa
+# dois blocos de fala. Nenhuma caption atravessa um bloco; o corte cai no silêncio.
+_SPEECH_RUN_BREAK = 0.08
+# D-025: nenhuma legenda fica menos que isto na tela. Presets de animação precisam
+# de pelo menos 3 frames: 0,125 s = 3 frames a 24 fps (3,75 a 30 fps).
+MIN_DISPLAY_SECONDS = 0.125
+# Conjunções curtas puxam a palavra seguinte ("Y" / "quien se" vira "Y quien").
+_CONJUNCTIONS = {"y", "e", "o", "u", "ni", "que", "pero", "porque", "pues", "mas"}
 
 
 @dataclass(frozen=True, slots=True)
@@ -177,6 +185,9 @@ def _forces_break_after(word: WordToken) -> bool:
 
 
 def _gap(left: WordToken, right: WordToken) -> float:
+    # Silêncio real medido no áudio (D-022) vale mais que o intervalo do alinhamento.
+    if left.pause_after is not None:
+        return left.pause_after
     return max(0.0, right.start - left.end)
 
 
@@ -218,6 +229,9 @@ def _pair_cohesion(
         score += 3.4
     if left_text in _QUESTION_WORDS and right_text in (_CLITICS | _ARTICLES):
         score += 1.5
+    if left_text in _CONJUNCTIONS:
+        # Ex.: `y quien`, `pero gracias`: conjunção sozinha não se sustenta na tela.
+        score += 3.0
 
     return score
 
@@ -236,6 +250,11 @@ def _pause_thresholds(words: Sequence[WordToken]) -> tuple[float, float]:
 
     if len(words) < 2:
         return 0.32, 0.16
+
+    # Pausas medidas no áudio já são silêncio de verdade (0.0 = fala contínua):
+    # qualquer respiro a partir de _SPEECH_RUN_BREAK separa blocos de fala.
+    if any(word.pause_after is not None for word in words):
+        return _SPEECH_RUN_BREAK, _SPEECH_RUN_BREAK / 2
 
     gaps = [_gap(left, right) for left, right in zip(words, words[1:])]
     # Pausas já claramente longas não devem elevar o próprio limiar que deveria
@@ -349,6 +368,14 @@ def _candidate_cost(
         elif _SOFT_PUNCTUATION.search(left.text.strip()):
             cost -= 0.8
 
+    # D-025: legenda curta demais para a animação. Penalidade grande (não proibição),
+    # para continuar existindo solução quando uma regra estrutural isola a palavra.
+    display_end = words[end].start if end < len(words) else group[-1].end + _LINGER
+    if display_end - group[0].start < MIN_DISPLAY_SECONDS:
+        cost += 50.0
+    if end < len(words) and _lexical(group[-1].text) in _CONJUNCTIONS:
+        cost += 2.0
+
     # Terminar em preposição é levemente desencorajado somente quando preposições
     # participam do modo inteligente. Com a opção desligada, elas são palavras comuns.
     if (
@@ -356,7 +383,8 @@ def _candidate_cost(
         and end < len(words)
         and _lexical(group[-1].text) in _PREPOSITIONS
     ):
-        cost += 0.2
+        # Com a fala medida (D-022), "El día de" / "hoy" perde para "El día" / "de hoy".
+        cost += 1.0 if group[-1].pause_after is not None else 0.2
 
     return cost
 
@@ -482,4 +510,23 @@ def _extend_display(cues: list[CaptionCue]) -> tuple[CaptionCue, ...]:
         else:
             end = min(cue.end + _LINGER, next_start)
         extended.append(CaptionCue(text=cue.text, start=cue.start, end=round(end, 3)))
-    return tuple(extended)
+    return _enforce_min_display(extended)
+
+
+def _enforce_min_display(cues: list[CaptionCue]) -> tuple[CaptionCue, ...]:
+    """Garante MIN_DISPLAY_SECONDS por legenda (D-025). Quando uma regra estrutural
+    deixou uma legenda curta, ela ganha o tempo mínimo e a seguinte começa um pouco
+    depois — nunca há overlap."""
+
+    result: list[CaptionCue] = []
+    for index, cue in enumerate(cues):
+        start = cue.start
+        if result and start < result[-1].end:
+            start = result[-1].end
+        end = max(cue.end, start + MIN_DISPLAY_SECONDS)
+        if index + 1 < len(cues):
+            following = cues[index + 1]
+            # Não empurra a próxima além do próprio fim dela.
+            end = min(end, max(start + MIN_DISPLAY_SECONDS, following.end - MIN_DISPLAY_SECONDS))
+        result.append(CaptionCue(text=cue.text, start=round(start, 3), end=round(end, 3)))
+    return tuple(result)

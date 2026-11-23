@@ -12,9 +12,9 @@ import {
 import '@fontsource-variable/inter'
 import '@fontsource/geist-mono/400.css'
 import './style.css'
+import brandMarkUrl from '../../../../assets/branding/srtx-64.png'
 
 // Acento da marca SRTX (o restante da interface é monocromático).
-const BRAND_ACCENT = '#6C3BFF'
 
 type HealthState =
   | { status: 'idle' | 'loading' | 'success' | 'error'; message: string }
@@ -758,6 +758,22 @@ function App() {
     replaceCaptions((captions) => captions.filter((_, currentIndex) => currentIndex !== index))
   }
 
+  // Junta a legenda com a seguinte: texto concatenado, do início desta ao fim da próxima.
+  function mergeCaptionWithNext(index: number) {
+    replaceCaptions((captions) => {
+      const current = captions[index]
+      const next = captions[index + 1]
+      if (!current || !next) return captions
+      const merged = {
+        ...current,
+        text: `${current.text.trim()} ${next.text.trim()}`.trim(),
+        end: Math.max(current.end, next.end)
+      }
+      return [...captions.slice(0, index), merged, ...captions.slice(index + 2)]
+    })
+    window.setTimeout(() => captionInputRefs.current[index]?.focus(), 0)
+  }
+
   function splitCaptionAt(index: number, offset: number) {
     let didSplit = false
     replaceCaptions((captions) => {
@@ -914,7 +930,7 @@ function App() {
     <div className="app">
       <aside className="sidebar">
         <div className="brand">
-          <span className="brand-mark" style={{ background: BRAND_ACCENT }} aria-hidden="true">SX</span>
+          <img className="brand-mark" src={brandMarkUrl} alt="" aria-hidden="true" />
           <span className="brand-name">SRTX</span>
           <span className="brand-tag">beta</span>
         </div>
@@ -1188,6 +1204,15 @@ function App() {
                                   onClick={() => splitCaptionAt(index, Math.floor(caption.text.length / 2))}
                                 >
                                   Dividir
+                                </button>
+                                <button
+                                  className="btn ghost small"
+                                  type="button"
+                                  title="Juntar com a legenda seguinte"
+                                  disabled={index === captionsData.captions.length - 1}
+                                  onClick={() => mergeCaptionWithNext(index)}
+                                >
+                                  Juntar
                                 </button>
                                 <button
                                   className="btn ghost small danger"

@@ -216,6 +216,7 @@ def _merged_token(
         probability=probability,
         kind="monetary",
         break_after=words[end].break_after,
+        pause_after=words[end].pause_after,
     )
 
 

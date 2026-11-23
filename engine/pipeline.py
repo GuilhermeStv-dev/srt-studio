@@ -100,6 +100,14 @@ def parse_reviewed_words(items: object) -> tuple[WordToken, ...]:
 
         probability = item.get("probability")
         kind = item.get("kind")
+        pause_after = item.get("pause_after")
+        if pause_after is not None:
+            try:
+                pause_after = float(pause_after)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f"pause_after inválido em '{text}'") from exc
+            if not math.isfinite(pause_after) or pause_after < 0:
+                raise ValueError(f"pause_after inválido em '{text}'")
         words.append(
             WordToken(
                 text=text,
@@ -108,6 +116,7 @@ def parse_reviewed_words(items: object) -> tuple[WordToken, ...]:
                 probability=None if probability is None else float(probability),
                 kind=None if kind is None else str(kind),
                 break_after=bool(item.get("break_after", False)),
+                pause_after=pause_after,
             )
         )
 

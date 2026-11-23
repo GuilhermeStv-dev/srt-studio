@@ -286,3 +286,118 @@ Idioma detectado fora dessa lista gera erro explícito na etapa 2; a etapa 1 con
 **Exibição das captions:** o fim de palavra medido pelo alinhamento é curto (33% das palavras < 120 ms), o que fazia a legenda piscar. Se a próxima caption começa em até 0,6 s, a atual fica na tela até ela; senão, fica mais 0,3 s depois do fim da palavra. Nunca há overlap (D-007 continua valendo).
 
 **Interface mínima (complementa D-018):** sem caminho do arquivo, versão do engine nem status de runtime (só aparece se houver erro); sem cartão de arquivo duplicado ("Trocar" ao lado do nome); sem amostra de palavras brutas; sem linha estática da trava de 17 caracteres; avisos só quando há novidade (exportação concluída/erro, texto alterado); subtítulo da barra superior reduzido a idioma e duração.
+
+## D-021 — Painel SRTX dentro do Premiere (CEP), complementar ao desktop
+
+**Status:** aprovada pelo usuário em 19/11/2026 ("começa o painel"), depois do estudo de painéis CEP instalados (Frame Speed, Afterflix). Revisa D-001: o produto continua desktop standalone, e ganha um painel do Premiere como segunda interface do mesmo engine.
+
+**Por quê:** hoje é preciso exportar o áudio do Premiere, transcrever no SRTX e importar o SRT de volta. O painel faz isso dentro do Premiere: renderiza o áudio da sequência, chama o engine e insere as legendas numa trilha de captions.
+
+**Como:**
+- painel **CEP** (HTML/CSS/JS + ExtendScript) em `apps/premiere-panel/`, com Node ativado (`--enable-nodejs --mixed-context`). UXP ainda não permite iniciar processos, que é como o engine roda;
+- o engine Python continua sendo a fonte de verdade: o painel usa os mesmos comandos e o mesmo contrato JSON do desktop (`transcribe-text`, `caption`, `segment`, `export-srt`). Nenhuma regra de transcrição, segmentação ou SRT vai para o painel (D-002);
+- áudio: `Sequence.exportAsMediaDirect` com o preset WAV mono 16 kHz que vem com o Premiere (`Settings/EncoderPresets/WAV_Mono_16bit_16kHz.epr`), da sequência inteira ou entre In/Out;
+- legendas: o engine grava o SRT (nunca sobrescreve; nome com data/hora) em `<pasta do projeto>/SRTX Legendas/`, o painel importa com `importFiles` e cria a trilha com `createCaptionTrack`;
+- engine usado pelo painel: `SRT_STUDIO_ENGINE`, senão o `.venv` do repositório (desenvolvimento), senão o engine do SRTX instalado (`%LOCALAPPDATA%\SRTX\app-*`);
+- local-first, sem conta, login, nuvem ou telemetria (D-003). Sem assinatura `.zxp` por enquanto: desenvolvimento com `PlayerDebugMode=1`;
+- visual: tema escuro "SRTX Graphite" que acompanha a cor do Premiere, roxo só em foco/progresso/seleção, ícone `Sx`. Estrutura inspirada em painéis CEP (abas numeradas progressivas, cards, botão principal fixo), sem copiar marca, código ou assets de terceiros.
+
+## D-022 — Ritmo pelo mapa de fala do áudio
+
+**Status:** aprovada pelo usuário em 19/11/2026, depois do primeiro teste do painel no Premiere: "El día de" / "hoy estamos por" quando o áudio mostra "El día de hoy" / silêncio / "estamos". O usuário pediu que o app resolva isso sozinho, sempre, e não só nesse trecho.
+
+**Diagnóstico (áudio real de 80 s, 98 legendas):** o alinhamento CTC acerta a ordem das palavras, mas erra as bordas. Perto das pausas, 65% dos inícios e 57% dos fins de palavra estavam mais de 80 ms fora da voz real, e o intervalo entre palavras não distinguia respiro de fala contínua. A segmentação decidia o ritmo sobre essa grade errada.
+
+**Regra:**
+- depois do alinhamento, o engine mede a energia do áudio em quadros de 10 ms e encontra os silêncios reais (≥ 60 ms, limiar adaptado ao nível de fala e de fundo). Sem contraste suficiente (música/ruído alto), nada muda;
+- cada silêncio é ligado à fronteira de palavras mais próxima (até 250 ms): o fim da palavra da esquerda vai para o início do silêncio e o início da palavra da direita para o fim dele. A legenda passa a entrar quando a voz começa;
+- `WordToken.pause_after` guarda o silêncio real depois de cada palavra (0.0 = fala contínua; `None` = não medido). Ele viaja pela normalização e pelo comando `segment`, então "Regerar legendas" mantém o ritmo;
+- com pausas medidas, um silêncio a partir de 80 ms separa **blocos de fala**: nenhuma legenda atravessa um bloco. Dentro do bloco valem as regras de sempre (alvo de palavras, preposições, 17 caracteres, moeda, fim de frase). Se o bloco cabe na regra, fica junto ("El día de hoy" no alvo 3); se não cabe, divide dentro dele ("El día" / "de hoy" no alvo 2), nunca puxando palavra de outro bloco;
+- terminar uma legenda em preposição custa mais com pausas medidas ("El día de" / "hoy" perde para "El día" / "de hoy").
+
+**Resultado no mesmo áudio:** erro mediano de início/fim de palavra nas pausas caiu de 34 ms / −67 ms para 0 ms / 0 ms; palavras com erro > 80 ms caíram de 65%/57% para 37%/26%; legendas atravessando uma pausa real caíram de 3 para 1.
+
+**Testes:** `tests/engine/test_speech_map.py` (mapa sintético, encaixe, blocos para alvos 1–4, payload `segment`) e as fixtures reais `es_py_speech_runs_target_2/3.json`.
+
+## D-023 — Alinhamento global do texto inteiro
+
+**Status:** aprovada pelo usuário em 19/11/2026 ("o que precisa mudar? a abordagem?"), depois do segundo teste no Premiere: "Jessica" longa, "Tengo" atrasado, "¿Están" esticado por mais de 1 s e atrapalhando todo o resto.
+
+**Causa:** o alinhamento de D-019/D-020 encaixava cada parágrafo numa janela própria e obrigava a janela seguinte a começar depois do fim do anterior. Uma fala curta ("Jessica.", "¿Están listos?") dentro de uma janela cheia de fala alheia esticava, e o atraso se propagava em cascata para todos os parágrafos seguintes (até ~1 s).
+
+**Abordagem nova:**
+- o modelo wav2vec2 roda no áudio inteiro em blocos de 20 s com 1 s de contexto, gerando uma grade única de frames de 20 ms;
+- um único Viterbi encaixa todas as palavras do texto de uma vez. Os parágrafos do Whisper só limitam a busca (±3 s) e nunca empurram uns aos outros; a busca fica numa faixa, então tempo e memória crescem linearmente com a duração;
+- entre quaisquer duas palavras existe um estado "lixo" opcional, que absorve fala não transcrita ("eh", risos, outra pessoa) sem esticar palavras vizinhas;
+- se o alinhamento global falhar, o parágrafo a parágrafo continua como reserva;
+- o mapa de fala de D-022 continua por cima, encostando as bordas nos silêncios reais.
+
+**Resultado no mesmo áudio:** "Edgar" 9,27 → 8,66 s (Whisper: 8,64), "Tengo" 9,55 → 9,27 s (Whisper: 9,30), "¿Están" 23,32–24,45 → 23,04–23,22 s.
+
+**Testes:** `AlignTranscriptTest` em `tests/engine/test_alignment.py` (lixo entre palavras, janela escolhendo a repetição certa, parágrafo curto não empurra os seguintes).
+
+## D-024 — Tempo híbrido: alinhamento acústico + Whisper como reserva
+
+**Status:** aprovada pelo usuário em 19/11/2026, junto com D-023 ("fazer o máximo para melhorar").
+
+**Por quê:** mesmo com o alinhamento global, o modelo de sincronização (wav2vec2 espanhol) perde a confiança em trechos que não conhece bem: inglês ("Latin Girl World Club"), fala rápida/sobreposta ("Gracias a mí. Yo no tengo loco"), números ditos ("100, 200"). Ali a confiança cai para perto de zero e a palavra vai parar a segundos do lugar. O Whisper raramente erra feio (erro típico 100–200 ms, sem cascata), mas é menos preciso que o alinhamento onde este reconhece a fala.
+
+**Regra:**
+- `transcribe-text` passa a pedir `word_timestamps` ao Whisper e devolve, em cada parágrafo, `words` com o tempo de cada palavra. O desktop e o painel mandam essa lista de volta no `caption` (dividir/juntar parágrafo divide/junta a lista);
+- depois do alinhamento global (D-023), cada palavra com confiança < 0,5 que esteja a mais de 350 ms do Whisper recebe o tempo do Whisper. Palavras confiáveis ficam com o tempo acústico. O casamento é por sequência (difflib), então texto editado continua funcionando;
+- o encaixe nos silêncios (D-022) vem por último e nunca move uma borda mais de 250 ms (só acabamento).
+
+**Resultado no áudio de teste:** 28 palavras perdidas voltaram ao lugar ("Gracias a mí" 46,0 → 47,4 s; "Latin Girl" 71,1 → 72,2 s; "Sí." 24,1 → 23,7 s), sem mexer nas confiáveis.
+
+**Testes:** `tests/engine/test_reference_timing.py` e o caso "Latin" em `test_speech_map.py`.
+
+## D-025 — Números pela forma falada, duração mínima e conjunções
+
+**Status:** aprovada pelo usuário em 19/11/2026 (terceiro teste no Premiere: "100, 200" fora do lugar; "Y" sozinho com 2 frames, "o preset de animação leva no mínimo 3 frames").
+
+- **Números:** o modelo de sincronização só conhece letras; algarismos ficavam sem som e a fala deles era engolida pelas palavras vizinhas. Para alinhar, cada número vira a forma falada (`engine/alignment/spoken.py`, es/pt/en: "100" → "cien", "200.000" → "doscientos mil", "50%" → "cincuenta por ciento"). O texto da legenda não muda.
+- **Duração mínima:** nenhuma legenda fica menos de `MIN_DISPLAY_SECONDS` = 0,125 s na tela (3 frames a 24 fps). Na segmentação é uma penalidade grande; se uma regra estrutural isolar algo curto (contagem, moeda), a legenda ganha o tempo mínimo e a seguinte começa um pouco depois, sem overlap.
+- **Conjunções** ("y", "o", "que", "pero"...) puxam a palavra seguinte e custam mais no fim de uma legenda.
+- **Medição geral:** `scripts/benchmark_sync.py` mede o vídeo inteiro (início de fala x início de legenda, legendas curtas, legendas cruzando silêncio, palavras esticadas, confiança baixa) sem depender de casos escolhidos a dedo.
+
+## D-024 — REVOGADA: Whisper como reserva de tempo
+
+Revogada em 19/11/2026 pela medição do vídeo inteiro (`scripts/benchmark_sync.py`, 20 retomadas de fala): trocar palavras de baixa confiança pelo tempo do Whisper piorava o resultado com qualquer limite testado (mediana 40 ms → 170–235 ms com o MMS; também piorava com o modelo antigo). O tempo do Whisper é aproximado demais para servir de reserva. O código foi removido e `transcribe-text` voltou a não pedir `word_timestamps`.
+
+## D-026 — Sincronização com o MMS da Meta (fp32)
+
+**Status:** aprovada pelo usuário em 19/11/2026 ("quero esse… o fp32, o melhor que possa ser").
+
+**Por quê:** o wav2vec2 espanhol comprimido (int8) dava confiança quase zero em palavras claras ("Edgar" 0,0001, "Tengo" 0,005). O MMS_FA da Meta é um wav2vec2 de 300M parâmetros treinado especificamente para alinhamento forçado (31 mil horas, 1.100+ idiomas).
+
+**Como:**
+- `scripts/export_mms_onnx.py` baixa os pesos oficiais (torchaudio `MMS_FA`), exporta para ONNX fp32 sem compressão (1,2 GB) e confere contra o PyTorch (diferença < 3e-4). O PyTorch fica só no ambiente de desenvolvimento; o app continua rodando ONNX no onnxruntime, então o instalador não cresce com o PyTorch;
+- o modelo fica em `%LOCALAPPDATA%\SRTX\models\mms-fa` (ou `SRTX_MMS_MODEL_DIR`). Quando existe, `load_alignment_model` usa o MMS; senão, o wav2vec2 por idioma como antes;
+- o texto é romanizado para o alfabeto do MMS (sem acentos: "¿Están" → "estan"), depois de os números virarem forma falada (D-025);
+- regra nova no mapa de fala: uma palavra nunca atravessa um silêncio ≥ 0,2 s (fica do lado onde está a maior parte da voz dela).
+
+**Resultado (vídeo de teste inteiro, 20 retomadas de fala, alvo 2):**
+- antes (modelo antigo, parágrafo a parágrafo — o que o usuário testou no Premiere): erro mediano 272 ms, 15/20 acima de 150 ms;
+- agora (MMS fp32, alinhamento global, números falados, silêncio dentro da palavra): erro mediano 0 ms, p90 237 ms, 5/20 acima de 150 ms. Os 5 restantes são plateia gritando, fala sobreposta e inglês.
+
+**Pendente para distribuição:** hospedar o `model.onnx` (1,2 GB) para download no primeiro uso em outros computadores; hoje ele existe só na máquina do usuário.
+
+## D-027 — EXPERIMENTO: legendas com estilo via TTML
+
+**Status:** em teste pelo usuário (19/11/2026). Pedido: inserir legendas já no estilo dele (tamanho 122, texto centralizado, alinhado embaixo, zona do meio da tela).
+
+**Limite do Premiere:** nem ExtendScript nem a API UXP do Premiere 2027 têm comando para estilizar legendas nativas (tamanho, alinhamento, zona, estilo de trilha). Conferido em `json/api_config.json` da instalação: `CaptionTrack` não expõe métodos de estilo.
+
+**Experimento:** `export-ttml` grava as legendas em TTML (`.xml`) com `tts:fontSize=122px`, `textAlign=center`, `displayAlign=after` e uma região na faixa do meio da tela, calculada pelo tamanho de quadro da sequência. O painel grava o SRT de sempre e o TTML, tenta criar a trilha pelo TTML e, se o Premiere recusar, cria pelo SRT, sem estilo, e avisa.
+
+**Se o Premiere ignorar o estilo do TTML:** caminho garantido é um "Track Style" salvo no Premiere e aplicado em 1 clique na trilha inteira.
+
+**Atualização D-027 (19/11/2026):** o usuário confirmou no Premiere que o TTML entra com tamanho 122 e na posição certa. O estilo virou **opcional** na aba Legendas ("Estilo ao inserir"): *Sem estilo* (SRT, padrão do Premiere), *SRTX* (122, centro, embaixo, meio da tela) ou um dos estilos salvos em `Documents\Adobe\Common\Assets\Text Styles`. Do `.prtextstyle` só é possível ler a fonte (bloco binário da Adobe; cores não estão no arquivo), então para estilo salvo o painel manda a fonte + cor do texto + contorno escolhidos no painel (`tts:fontFamily`, `tts:color`, `tts:textOutline`). Se fonte/cores não forem respeitadas pelo Premiere, os campos são ignorados e o resto continua valendo.
+
+## D-028 — Legendas como clipes de texto (MOGRT), tudo automático
+
+**Status:** aprovada pelo usuário em 19/11/2026 ("quero tudo automático"), depois de D-027 mostrar o limite: o TTML traz tamanho, zona, cor e contorno, mas não o alinhamento vertical nem o vínculo com o Track Style, e nenhuma API do Premiere estiliza legendas nativas.
+
+**Como:** o usuário exporta uma vez, do próprio Premiere, um modelo `.mogrt` com uma legenda no estilo dele (Export As Motion Graphics Template → Local Templates Folder). O painel lista os `.mogrt` de `%APPDATA%\Adobe\Common\Motion Graphics Templates` (mais recentes primeiro) e, em "Clipes de texto", insere cada legenda como um clipe desse modelo (`Sequence.importMGT`), troca o texto (`textEditValue` no parâmetro de texto do Essential Graphics, ou a string direto em modelos do After Effects) e ajusta o fim do clipe ao fim da legenda. A trilha é a de vídeo mais alta livre em todo o trecho; se nenhuma estiver livre, uma nova é criada (QE `addTracks`). Inserção em lotes de 12 para mostrar progresso. O SRT continua sendo gravado em `SRTX Legendas` como arquivo de referência. "Legenda nativa" (D-027) continua disponível como opção.
+
+**Segurança:** ExtendScript não tem `JSON.parse`; `srtx_parse` valida o texto com a regra do json2.js (só JSON) antes de avaliar.
